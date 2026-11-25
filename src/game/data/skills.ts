@@ -1,0 +1,307 @@
+import type { SkillDef, SkillId, SynergyDef, SynergyId } from '../types';
+
+export const SKILLS: Record<SkillId, SkillDef> = {
+  fireball: {
+    id: 'fireball',
+    name: 'Bola de Fogo',
+    type: 'active',
+    element: 'fire',
+    description: 'Lança uma esfera flamejante que explode ao atingir inimigos, incendiando a área.',
+    cooldown: 4.1,
+    basePower: 1.75,
+    maxLevel: 9,
+    color: '#f97316',
+    evolutions: [
+      { minLevel: 1, name: 'Bola de Fogo', description: 'Projétil explosivo de chamas concentradas.' },
+      { minLevel: 4, name: 'Chamas Infernais', description: 'Dispara 3 esferas infernais com maior raio de explosão.' },
+      { minLevel: 7, name: 'Meteoro Apocalíptico', description: 'Explosões em cadeia que deixam brasas escaldantes no solo.' },
+    ],
+  },
+  shadow_slash: {
+    id: 'shadow_slash',
+    name: 'Corte Sombrio',
+    type: 'active',
+    element: 'shadow',
+    description: 'Desfere ondas cortantes de energia sombria em arco perfurante à frente do herói.',
+    cooldown: 3.4,
+    basePower: 1.65,
+    maxLevel: 9,
+    color: '#a855f7',
+    evolutions: [
+      { minLevel: 1, name: 'Corte Sombrio', description: 'Meia-lua sombria perfurante de curto alcance.' },
+      { minLevel: 4, name: 'Lâmina do Eclipse', description: 'Corte duplo cruzado que reduz velocidade dos inimigos.' },
+      { minLevel: 7, name: 'Fenda Abissal', description: 'Onda dimensional gigante com bônus crítico garantido.' },
+    ],
+  },
+  meteor_shower: {
+    id: 'meteor_shower',
+    name: 'Chuva de Meteoros',
+    type: 'active',
+    element: 'fire',
+    description: 'Invoca múltiplos meteoros flamejantes sobre inimigos próximos com alto dano em área.',
+    cooldown: 8.2,
+    basePower: 2.25,
+    maxLevel: 9,
+    color: '#ef4444',
+    evolutions: [
+      { minLevel: 1, name: 'Chuva de Meteoros', description: '3 meteoros caem sobre inimigos próximos.' },
+      { minLevel: 4, name: 'Cataclismo Solar', description: '5 meteoros de raio expandido com ondas de choque.' },
+      { minLevel: 7, name: 'Juízo Estelar', description: '8 meteoros devastadores com dano crítico amplificado.' },
+    ],
+  },
+  electric_aura: {
+    id: 'electric_aura',
+    name: 'Aura Elétrica',
+    type: 'passive',
+    element: 'lightning',
+    description: 'Campo voltaico contínuo ao redor do personagem que eletrocuta inimigos próximos.',
+    cooldown: 0.7,
+    basePower: 0.48,
+    maxLevel: 9,
+    color: '#38bdf8',
+    evolutions: [
+      { minLevel: 1, name: 'Aura Elétrica', description: 'Descargas constantes em curto alcance.' },
+      { minLevel: 4, name: 'Campo de Plasma', description: 'Alcance ampliado e choque que retarda inimigos.' },
+      { minLevel: 7, name: 'Domínio da Tormenta', description: 'Relâmpagos automáticos atingem quem entra na aura.' },
+    ],
+  },
+  chain_lightning: {
+    id: 'chain_lightning',
+    name: 'Corrente de Raios',
+    type: 'active',
+    element: 'lightning',
+    description: 'Dispara um relâmpago que salta rapidamente entre múltiplos inimigos próximos.',
+    cooldown: 4.8,
+    basePower: 1.55,
+    maxLevel: 9,
+    color: '#60a5fa',
+    evolutions: [
+      { minLevel: 1, name: 'Corrente de Raios', description: 'Salta entre 4 inimigos próximos.' },
+      { minLevel: 4, name: 'Tempestade Elétrica', description: 'Salta entre 7 alvos com sobrecarga elétrica.' },
+      { minLevel: 7, name: 'Ira Divina', description: 'Salta entre 11 alvos convocando trovões do céu.' },
+    ],
+  },
+  orbital_blades: {
+    id: 'orbital_blades',
+    name: 'Espadas Orbitais',
+    type: 'passive',
+    element: 'arcane',
+    description: 'Conjura lâminas espectrais que orbitam o herói, cortando qualquer inimigo no caminho.',
+    cooldown: 0,
+    basePower: 0.68,
+    maxLevel: 9,
+    color: '#cbd5e1',
+    evolutions: [
+      { minLevel: 1, name: 'Espadas Orbitais', description: '2 lâminas orbitam em torno do herói.' },
+      { minLevel: 4, name: 'Anel de Valquírias', description: '4 lâminas velozes com raio expandido.' },
+      { minLevel: 7, name: 'Sinfonia Cortante', description: '6 lâminas espectrais com alto dano crítico.' },
+    ],
+  },
+  regeneration: {
+    id: 'regeneration',
+    name: 'Regeneração',
+    type: 'passive',
+    element: 'divine',
+    description: 'Restaura vida continuamente em combate e aumenta a eficácia de cura recebida.',
+    cooldown: 1.0,
+    basePower: 0.0075, // % max HP per second
+    maxLevel: 9,
+    color: '#22c55e',
+    evolutions: [
+      { minLevel: 1, name: 'Regeneração', description: 'Cura contínua proporcional à vida máxima.' },
+      { minLevel: 4, name: 'Vigor Imortal', description: 'Aumenta a regeneração em +65% quando abaixo de 40% de vida.' },
+      { minLevel: 7, name: 'Sangue de Fênix', description: 'Pulso curativo periódico que repele inimigos.' },
+    ],
+  },
+  divine_shield: {
+    id: 'divine_shield',
+    name: 'Escudo Divino',
+    type: 'passive',
+    element: 'divine',
+    description: 'Gera periodicamente uma barreira sagrada que absorve dano antes da vida.',
+    cooldown: 12.5,
+    basePower: 0.14, // % max HP shield
+    maxLevel: 9,
+    color: '#eab308',
+    evolutions: [
+      { minLevel: 1, name: 'Escudo Divino', description: 'Barreira sagrada regenerável.' },
+      { minLevel: 4, name: 'Égide Dourada', description: 'Explode em luz ao quebrar, empurrando inimigos.' },
+      { minLevel: 7, name: 'Bastião Celestial', description: 'Barreira reforçada que concede breve invulnerabilidade ao quebrar.' },
+    ],
+  },
+  shadow_summon: {
+    id: 'shadow_summon',
+    name: 'Invocação de Sombras',
+    type: 'active',
+    element: 'shadow',
+    description: 'Conjura espectros sombrios autônomos que caçam e dilaceram inimigos na masmorra.',
+    cooldown: 9.8,
+    basePower: 0.65,
+    maxLevel: 9,
+    color: '#818cf8',
+    evolutions: [
+      { minLevel: 1, name: 'Invocação de Sombras', description: 'Invoca 2 sombras caçadoras.' },
+      { minLevel: 4, name: 'Exército Sombrio', description: 'Invoca 4 cavaleiros sombrios mais rápidos e resistentes.' },
+      { minLevel: 7, name: 'Legião Abissal', description: 'Invoca 6 guardiões abissais que explodem ao expirar.' },
+    ],
+  },
+  arcane_blast: {
+    id: 'arcane_blast',
+    name: 'Explosão Arcana',
+    type: 'active',
+    element: 'arcane',
+    description: 'Libera uma onda expansiva arcana ao redor do herói que empurra e esmaga inimigos.',
+    cooldown: 5.6,
+    basePower: 1.95,
+    maxLevel: 9,
+    color: '#c084fc',
+    evolutions: [
+      { minLevel: 1, name: 'Explosão Arcana', description: 'Anel de impacto arcano com repulsão.' },
+      { minLevel: 4, name: 'Ruptura Etérea', description: 'Dupla onda expansiva com dano amplificado.' },
+      { minLevel: 7, name: 'Colapso Arcano', description: 'Aniquilação radial que destrói projéteis inimigos.' },
+    ],
+  },
+  time_freeze: {
+    id: 'time_freeze',
+    name: 'Congelamento Temporal',
+    type: 'active',
+    element: 'ice',
+    description: 'Desacelera e congela inimigos ao redor em cristais temporais, amplificando o dano recebido.',
+    cooldown: 9.2,
+    basePower: 1.15,
+    maxLevel: 9,
+    color: '#22d3ee',
+    evolutions: [
+      { minLevel: 1, name: 'Congelamento Temporal', description: 'Congela inimigos próximos por 1,9s.' },
+      { minLevel: 4, name: 'Zero Absoluto', description: 'Inimigos congelados recebem +30% de dano.' },
+      { minLevel: 7, name: 'Eternidade Glacial', description: 'Congela toda a área visível e estilhaça alvos feridos.' },
+    ],
+  },
+  black_hole: {
+    id: 'black_hole',
+    name: 'Buraco Negro',
+    type: 'active',
+    element: 'gravity',
+    description: 'Cria uma singularidade no cursor que puxa inimigos para o centro causando dano contínuo.',
+    cooldown: 10.5,
+    basePower: 0.9,
+    maxLevel: 9,
+    color: '#9333ea',
+    evolutions: [
+      { minLevel: 1, name: 'Buraco Negro', description: 'Vórtice gravitacional por 3,0s.' },
+      { minLevel: 4, name: 'Horizonte de Eventos', description: 'Maior atração e implosão final devastadora.' },
+      { minLevel: 7, name: 'Singularidade Primordial', description: 'Puxa quase toda a arena e aplica vulnerabilidade.' },
+    ],
+  },
+  life_drain: {
+    id: 'life_drain',
+    name: 'Drenagem de Vida',
+    type: 'passive',
+    element: 'blood',
+    description: 'Suga essência vital de inimigos próximos periodicamente, convertendo dano em cura.',
+    cooldown: 1.65,
+    basePower: 0.52,
+    maxLevel: 9,
+    color: '#e11d48',
+    evolutions: [
+      { minLevel: 1, name: 'Drenagem de Vida', description: 'Feixes carmesim drenam 2 alvos próximos.' },
+      { minLevel: 4, name: 'Sifão Carmesim', description: 'Drena 4 alvos e concede +3% roubo de vida.' },
+      { minLevel: 7, name: 'Banquete de Sangue', description: 'Drena 6 alvos e converte excesso de cura em escudo.' },
+    ],
+  },
+  celestial_bolt: {
+    id: 'celestial_bolt',
+    name: 'Relâmpago Celestial',
+    type: 'active',
+    element: 'divine',
+    description: 'Invoca pilares de luz sagrada do alto diretamente sobre o inimigo mais forte ou próximo.',
+    cooldown: 5.4,
+    basePower: 2.35,
+    maxLevel: 9,
+    color: '#facc15',
+    evolutions: [
+      { minLevel: 1, name: 'Relâmpago Celestial', description: 'Pilar de luz de alto dano concentrado.' },
+      { minLevel: 4, name: 'Lança do Serafim', description: '3 pilares consecutivos com bônus contra chefes.' },
+      { minLevel: 7, name: 'Julgamento Divino', description: '5 pilares massivos com dano verdadeiro adicional.' },
+    ],
+  },
+  demonic_fury: {
+    id: 'demonic_fury',
+    name: 'Fúria Demoníaca',
+    type: 'active',
+    element: 'blood',
+    description: 'Desperta fúria sombria temporária, aumentando drasticamente velocidade de ataque, dano e crítico.',
+    cooldown: 12.5,
+    basePower: 1.35,
+    maxLevel: 9,
+    color: '#dc2626',
+    evolutions: [
+      { minLevel: 1, name: 'Fúria Demoníaca', description: '+35% Dano e +28% Vel. Ataque por 4,5s.' },
+      { minLevel: 4, name: 'Avatar do Caos', description: '+55% Dano, +42% Vel. Ataque e +12% Crítico por 6s.' },
+      { minLevel: 7, name: 'Ascensão Demoníaca', description: '+85% Dano, +60% Vel. Ataque e ondas de fogo ao atacar.' },
+    ],
+  },
+};
+
+export const SKILL_LIST: SkillDef[] = Object.values(SKILLS);
+
+export const SYNERGIES: SynergyDef[] = [
+  {
+    id: 'fire_tornado',
+    name: 'Tornado de Fogo',
+    description: 'Chamas envolvem suas lâminas orbitais, gerando tornados flamejantes periódicos que varrem a arena.',
+    requiresSkills: ['fireball', 'orbital_blades'],
+    color: '#fb923c',
+    bonusText: 'Conjura Tornados de Fogo a cada 4s +25% Dano de Fogo',
+  },
+  {
+    id: 'glacial_storm',
+    name: 'Tempestade Glacial',
+    description: 'Relâmpagos e congelamento se fundem, fazendo tempestades elétricas congelarem e estilhaçarem inimigos.',
+    requiresSkills: ['chain_lightning', 'time_freeze'],
+    color: '#38bdf8',
+    bonusText: 'Corrente de Raios aplica Congelamento e +40% Dano em alvos gelados',
+  },
+  {
+    id: 'vampiric_aura',
+    name: 'Aura Vampírica',
+    description: 'Cortes sombrios e drenagem vital criam um manto de sangue constante que fortalece roubo de vida.',
+    requiresSkills: ['shadow_slash', 'life_drain'],
+    color: '#f43f5e',
+    bonusText: '+8% Roubo de Vida permanente e pulso vampírico ao usar Corte Sombrio',
+  },
+  {
+    id: 'supernova',
+    name: 'Supernova',
+    description: 'Ao colapsar, o Buraco Negro absorve energia ígnea e explode em uma supernova de alcance massivo.',
+    requiresSkills: ['black_hole', 'fireball'],
+    color: '#f59e0b',
+    bonusText: 'Buraco Negro detona em Supernova causando 320% de dano em área',
+  },
+  {
+    id: 'assassin_legion',
+    name: 'Legião de Assassinos',
+    description: 'Suas sombras invocadas herdam sua fúria crítica, desferindo golpes críticos velozes e teleportes.',
+    requiresSkills: ['shadow_summon', 'demonic_fury'],
+    color: '#c084fc',
+    bonusText: 'Sombras ganham +45% Crítico, +35% Velocidade e +50% Dano',
+  },
+];
+
+export function getSkillEvolutionTier(skillId: SkillId, level: number) {
+  const def = SKILLS[skillId];
+  let tier = def.evolutions[0];
+  for (const evo of def.evolutions) {
+    if (level >= evo.minLevel) tier = evo;
+  }
+  return tier;
+}
+
+export function computeActiveSynergies(skills: Partial<Record<SkillId, number>>): SynergyId[] {
+  const active: SynergyId[] = [];
+  for (const syn of SYNERGIES) {
+    const met = syn.requiresSkills.every((req) => (skills[req] ?? 0) >= 1);
+    if (met) active.push(syn.id);
+  }
+  return active;
+}

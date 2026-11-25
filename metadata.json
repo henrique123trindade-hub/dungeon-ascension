@@ -1,0 +1,6 @@
+{
+  "name": "Dungeon Ascension",
+  "description": "Roguelite dark fantasy de ação 2D em masmorra infinita com classes, evoluções, sinergias secretas, chefes multifásicos e progressão permanente.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
