@@ -177,6 +177,62 @@ export function GameHUD({
             ))}
           </div>
         )}
+
+        {/* Temporary Combo Multiplier Indicator */}
+        {hud.combo && (() => {
+          const mult = hud.combo.multiplier;
+          const accent =
+            mult >= 2.0
+              ? '#facc15'
+              : mult >= 1.75
+                ? '#f43f5e'
+                : mult >= 1.5
+                  ? '#fb923c'
+                  : mult >= 1.25
+                    ? '#f59e0b'
+                    : '#f8e3a8';
+          const timerPct = Math.max(
+            0,
+            Math.min(100, (hud.combo.remainingSec / Math.max(0.1, hud.combo.maxWindowSec)) * 100)
+          );
+          const multLabel = `×${mult.toFixed(2).replace(/0$/, '')}`;
+
+          return (
+            <div
+              data-testid="hud-combo-indicator"
+              className="pl-2.5 pr-3 py-1.5 w-fit min-w-[168px] border-l-2 hud-text-shadow"
+              style={{
+                borderLeftColor: accent,
+                background:
+                  'linear-gradient(to right, rgba(14, 12, 19, 0.86) 0%, rgba(14, 12, 19, 0.45) 72%, rgba(14, 12, 19, 0) 100%)',
+              }}
+            >
+              <div className="flex items-baseline justify-between gap-3">
+                <div className="flex items-baseline gap-1.5">
+                  <span className="font-display text-[10px] font-bold tracking-[0.18em] text-[#c7bfb2] uppercase">
+                    Combo
+                  </span>
+                  <span
+                    key={hud.combo.hits}
+                    className="font-mono-num text-lg font-extrabold leading-none tracking-tight animate-combo-pop"
+                    style={{ color: accent }}
+                  >
+                    {multLabel}
+                  </span>
+                </div>
+                <span className="font-mono-num text-[11px] font-semibold text-[#e8e3d9]">
+                  {hud.combo.hits} golpes
+                </span>
+              </div>
+              <div className="mt-1.5 h-[2px] w-full bg-white/15 overflow-hidden">
+                <div
+                  className="h-full transition-[width] duration-75"
+                  style={{ width: `${timerPct}%`, backgroundColor: accent }}
+                />
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* TOP-CENTER: Boss Health Banner OR Timed Challenge OR Floor Notice */}
@@ -273,8 +329,13 @@ export function GameHUD({
       </div>
 
       {/* TOP-RIGHT CLUSTER: Floor, Biome, Remaining Enemies, Currencies, Minimap & Utility Icons */}
-      <div className="fixed top-3.5 right-4 flex flex-col items-end gap-2">
-        <div className="flex items-start gap-2.5">
+      <div className="fixed top-3.5 right-4 z-30 flex flex-col items-end">
+        <div
+          data-hud-surface="true"
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          className="pointer-events-auto cursor-default flex items-start gap-2.5"
+        >
           <div className="hud-iron-frame px-3 py-2 text-right">
             <div className="font-display text-xs sm:text-sm font-bold text-[#f8e3a8] tracking-wide leading-tight">
               Andar {hud.floor} <span className="text-[#d4a64a]/60 mx-0.5">·</span> {hud.biomeName}
@@ -363,7 +424,13 @@ export function GameHUD({
         </div>
 
         {/* Utility square buttons */}
-        <div className="pointer-events-auto flex items-center gap-1.5">
+        <div
+          data-hud-surface="true"
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          className="relative z-30 pointer-events-auto cursor-default flex items-center gap-1.5 pt-2 px-1 pb-1 -mx-1 -mb-1"
+        >
           <UtilityBtn
             label="Inventário (I)"
             hotkey="I"
@@ -413,7 +480,12 @@ export function GameHUD({
           <button
             type="button"
             tabIndex={-1}
+            data-hud-surface="true"
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
             onClick={(e) => {
+              e.stopPropagation();
               e.currentTarget.blur();
               phaserBridge.getController()?.triggerInteract();
             }}
@@ -445,7 +517,13 @@ export function GameHUD({
           </div>
         )}
 
-        <div className="pointer-events-auto relative hud-iron-frame px-3 py-2 flex items-center gap-2">
+        <div
+          data-hud-surface="true"
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          className="pointer-events-auto cursor-default relative hud-iron-frame px-3 py-2 flex items-center gap-2"
+        >
           <CornerNotches gold />
 
           {/* Q E R F Active Skills */}
@@ -455,6 +533,7 @@ export function GameHUD({
                 ? Math.min(1, slot.cooldownRemaining / slot.cooldownTotal)
                 : 0;
             const ready = Boolean(slot.skillId && slot.cooldownRemaining <= 0.05);
+            const isAiming = hud.activeCastSlot === idx;
             return (
               <button
                 key={slot.key}
@@ -469,15 +548,19 @@ export function GameHUD({
                 aria-label={slot.skillId ? `Usar ${slot.name} (${slot.key})` : `Espaço ${slot.key} vazio`}
                 className={`relative w-12 h-12 sm:w-[54px] sm:h-[54px] border flex flex-col items-center justify-center transition-colors overflow-hidden ${
                   slot.skillId
-                    ? ready
-                      ? 'bg-[#191623] border-[#d4a64a]/65 hover:border-[#f8e3a8] cursor-pointer'
-                      : 'bg-[#100e16] border-white/15 cursor-default'
+                    ? isAiming
+                      ? 'bg-[#262033] border-[#4ade80] cursor-pointer'
+                      : ready
+                        ? 'bg-[#191623] border-[#d4a64a]/65 hover:border-[#f8e3a8] cursor-pointer'
+                        : 'bg-[#100e16] border-white/15 cursor-default'
                     : 'bg-[#0b0a0f] border-white/10 opacity-45 cursor-default'
                 }`}
                 style={
-                  ready && slot.skillId
-                    ? { boxShadow: `inset 0 -3px 0 ${slot.color}cc, inset 0 0 12px ${slot.color}1e` }
-                    : undefined
+                  isAiming && slot.skillId
+                    ? { boxShadow: `inset 0 0 14px rgba(74,222,128,0.28), 0 0 10px rgba(74,222,128,0.25)` }
+                    : ready && slot.skillId
+                      ? { boxShadow: `inset 0 -3px 0 ${slot.color}cc, inset 0 0 12px ${slot.color}1e` }
+                      : undefined
                 }
               >
                 {slot.skillId && (
@@ -516,11 +599,17 @@ export function GameHUD({
               phaserBridge.getController()?.triggerDash();
             }}
             aria-label="Esquiva (Espaço)"
-            className="relative w-12 h-12 sm:w-[54px] sm:h-[54px] bg-[#191623] border border-[#c084fc]/55 hover:border-[#e9d5ff] flex flex-col items-center justify-center cursor-pointer overflow-hidden"
+            className={`relative w-12 h-12 sm:w-[54px] sm:h-[54px] border flex flex-col items-center justify-center cursor-pointer overflow-hidden ${
+              hud.activeCastSlot === -1
+                ? 'bg-[#262033] border-[#4ade80]'
+                : 'bg-[#191623] border-[#c084fc]/55 hover:border-[#e9d5ff]'
+            }`}
             style={
-              hud.dashCooldown <= 0.05
-                ? { boxShadow: 'inset 0 -3px 0 rgba(192,132,252,0.8), inset 0 0 12px rgba(192,132,252,0.14)' }
-                : undefined
+              hud.activeCastSlot === -1
+                ? { boxShadow: 'inset 0 0 14px rgba(74,222,128,0.28), 0 0 10px rgba(74,222,128,0.25)' }
+                : hud.dashCooldown <= 0.05
+                  ? { boxShadow: 'inset 0 -3px 0 rgba(192,132,252,0.8), inset 0 0 12px rgba(192,132,252,0.14)' }
+                  : undefined
             }
           >
             <svg viewBox="0 0 24 24" className="w-5 h-5 text-[#c084fc]" fill="none" stroke="currentColor" strokeWidth="1.9">
@@ -576,20 +665,25 @@ function UtilityBtn({
     <button
       type="button"
       tabIndex={-1}
+      data-hud-surface="true"
       aria-label={label}
       title={label}
+      onPointerDown={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
       onClick={(e) => {
+        e.stopPropagation();
         e.currentTarget.blur();
         onClick();
       }}
-      className="relative w-9 h-9 bg-[#121018]/94 border border-[#d4a64a]/38 hover:border-[#f8e3a8] hover:bg-[#1e1a29] text-[#e8e3d9] flex items-center justify-center transition-colors cursor-pointer"
+      className="relative w-9 h-9 bg-[#121018]/94 border border-[#d4a64a]/38 hover:border-[#f8e3a8] hover:bg-[#1e1a29] text-[#e8e3d9] flex items-center justify-center transition-colors cursor-pointer pointer-events-auto"
     >
-      {children}
-      <span className="absolute bottom-0.5 right-0.5 font-mono-num text-[8px] text-[#9c9487] leading-none">
+      <span className="pointer-events-none flex items-center justify-center">{children}</span>
+      <span className="pointer-events-none absolute bottom-0.5 right-0.5 font-mono-num text-[8px] text-[#9c9487] leading-none">
         {hotkey === 'Esc' ? 'ESC' : hotkey}
       </span>
       {badge !== undefined && (
-        <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 bg-[#b83232] border border-[#f8e3a8]/40 text-[10px] font-mono-num font-bold text-white flex items-center justify-center">
+        <span className="pointer-events-none absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 bg-[#b83232] border border-[#f8e3a8]/40 text-[10px] font-mono-num font-bold text-white flex items-center justify-center">
           {badge}
         </span>
       )}

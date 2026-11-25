@@ -18,6 +18,18 @@ import type {
 
 export const RARITY_ORDER: Rarity[] = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'];
 
+export const COMBO_WINDOW_SEC = 2.8;
+export const COMBO_MIN_HITS = 3;
+
+export function computeComboMultiplier(hits: number): number {
+  if (hits < COMBO_MIN_HITS) return 1;
+  if (hits < 6) return 1.1;
+  if (hits < 10) return 1.25;
+  if (hits < 15) return 1.5;
+  if (hits < 25) return 1.75;
+  return 2.0;
+}
+
 export const RARITY_META: Record<
   Rarity,
   {

@@ -8,6 +8,9 @@ import { computeActiveSynergies, getSkillEvolutionTier, SKILLS } from '../data/s
 import { audioEngine } from '../systems/audioEngine';
 import {
   calculateAttackDamage,
+  COMBO_MIN_HITS,
+  COMBO_WINDOW_SEC,
+  computeComboMultiplier,
   computePlayerStats,
   createEmptyModifiers,
   createStarterWeapon,
@@ -27,6 +30,7 @@ import type {
   ActiveEventPayload,
   ActiveSkillSlotHUD,
   BossDef,
+  CastMode,
   ClassId,
   ComputedPlayerStats,
   EliteModifierId,
@@ -43,7 +47,21 @@ import type {
   SynergyId,
   UpgradeOption,
 } from '../types';
+import {
+  AutoTargetResult,
+  computeBasicAttackSpec,
+  computeDashGeometrySpec,
+  computeSkillGeometrySpec,
+  DASH_DURATION_SEC,
+  DASH_SPEED_MULT,
+  evaluateSkillCast,
+  findConeTargets,
+  resolveCastMode,
+  selectAutoAttackTarget,
+  TargetableEnemy,
+} from '../systems/targeting';
 import { DungeonController, phaserBridge } from './PhaserBridge';
+import { TargetingRenderer } from './TargetingRenderer';
 import { generateAllGameTextures } from './TextureFactory';
 
 const HERO_BASE_SCALE = 0.62;
@@ -210,6 +228,11 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     screenShake: true,
     damageNumbers: true,
     mobileControls: 'auto',
+    autoAttack: true,
+    showAttackRange: true,
+    defaultCastMode: 'quick_indicator',
+    dashCastMode: 'quick_indicator',
+    skillCastModes: {},
   };
 
   private level = 1;
@@ -299,6 +322,8 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
   private slashParity = false;
   private decalCount = 0;
   private lastDamagedAt = 0;
+  private comboHits = 0;
+  private comboTimer = 0;
   private footstepTimer = 0;
 
   // Juice, Timing & Input
@@ -322,6 +347,29 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
   private mobileFiring = false;
   private keyDownHandler?: (e: KeyboardEvent) => void;
   private keyUpHandler?: (e: KeyboardEvent) => void;
+  private pointerMoveWindowHandler?: (e: PointerEvent) => void;
+
+  // Dynamic Targeting, Auto-Attack & Cast Preview State
+  private targetingRenderer?: TargetingRenderer;
+  private autoTargetId: number | null = null;
+  private lastAutoTarget: AutoTargetResult | null = null;
+  private reticleRecoil = 0;
+  private pointerInitialized = false;
+  private pointerOverHud = false;
+  private pendingCast: {
+    kind: 'skill' | 'dash';
+    slotIndex: number; // 0..3 for Q/E/R/F, -1 for Dash
+    skillId: SkillId | null;
+    mode: CastMode;
+    keyCode: string;
+  } | null = null;
+  private cooldownPreview: {
+    kind: 'skill' | 'dash';
+    slotIndex: number;
+    skillId: SkillId | null;
+    timer: number;
+  } | null = null;
+  private forcedDashAngle: number | null = null;
 
   constructor() {
     super('DungeonScene');
@@ -333,26 +381,81 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     this.cameras.main.setBackgroundColor('#0b0a0e');
     this.telegraphGraphics = this.add.graphics().setDepth(45);
     this.beamGraphics = this.add.graphics().setDepth(70);
+    this.targetingRenderer = new TargetingRenderer(this);
+    this.input.mouse?.disableContextMenu();
+
+    // Default reticle position near upper-center until first pointer move
+    this.pointerScreenX = this.scale.width * 0.5;
+    this.pointerScreenY = this.scale.height * 0.36;
 
     // Pre-allocate zero-GC pools
     this.initPools();
 
-    // Pointer tracking
+    // Pointer tracking (supports Normal Cast confirm on LMB & cancel on RMB)
     this.input.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
       if (!this.isActiveRun || this.isPaused) return;
+      const evTarget = ptr.event?.target;
+      if (
+        (evTarget instanceof Element &&
+          (evTarget.closest('[data-hud-surface="true"]') || evTarget.closest('button'))) ||
+        (evTarget && evTarget !== this.game.canvas)
+      ) {
+        return;
+      }
+
+      this.pointerScreenX = ptr.x;
+      this.pointerScreenY = ptr.y;
+      this.pointerInitialized = true;
+
+      if (ptr.rightButtonDown()) {
+        if (this.pendingCast) {
+          this.cancelPendingCast();
+        }
+        return;
+      }
+
       if (ptr.leftButtonDown()) {
+        if (this.pendingCast && this.pendingCast.mode === 'normal') {
+          const cast = this.pendingCast;
+          this.pendingCast = null;
+          this.cooldownPreview = null;
+          if (cast.kind === 'dash') {
+            this.executeDashTowardAim();
+          } else {
+            this.executeSkillSlot(cast.slotIndex);
+          }
+          return;
+        }
         this.mouseDown = true;
-        this.pointerScreenX = ptr.x;
-        this.pointerScreenY = ptr.y;
       }
     });
     this.input.on('pointermove', (ptr: Phaser.Input.Pointer) => {
       this.pointerScreenX = ptr.x;
       this.pointerScreenY = ptr.y;
+      this.pointerInitialized = true;
     });
-    this.input.on('pointerup', () => {
-      this.mouseDown = false;
+    this.input.on('pointerup', (ptr: Phaser.Input.Pointer) => {
+      if (!ptr.leftButtonDown()) {
+        this.mouseDown = false;
+      }
     });
+
+    // Track pointer even while hovering over non-interactive HUD regions so reticle never freezes
+    this.pointerMoveWindowHandler = (e: PointerEvent) => {
+      const target = e.target;
+      this.pointerOverHud = Boolean(
+        target instanceof Element &&
+          (target.closest('[data-hud-surface="true"]') || target.closest('button'))
+      );
+      const canvas = this.game.canvas;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+      this.pointerScreenX = ((e.clientX - rect.left) / rect.width) * this.scale.width;
+      this.pointerScreenY = ((e.clientY - rect.top) / rect.height) * this.scale.height;
+      this.pointerInitialized = true;
+    };
+    window.addEventListener('pointermove', this.pointerMoveWindowHandler, { passive: true });
 
     // Global window key listeners (reliably work regardless of canvas focus)
     this.keyDownHandler = (e: KeyboardEvent) => {
@@ -364,22 +467,38 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
       if (!e.repeat) {
         if (code === 'Space') {
           e.preventDefault();
-          this.dashBufferTimer = 0.14;
+          this.handleCastKeyDown('dash', -1, code);
         } else if (code === 'KeyQ') {
-          this.castSkillSlot(0);
+          this.handleCastKeyDown('skill', 0, code);
         } else if (code === 'KeyE') {
-          this.castSkillSlot(1);
+          this.handleCastKeyDown('skill', 1, code);
         } else if (code === 'KeyR') {
-          this.castSkillSlot(2);
+          this.handleCastKeyDown('skill', 2, code);
         } else if (code === 'KeyF') {
-          this.castSkillSlot(3);
+          this.handleCastKeyDown('skill', 3, code);
         } else if (code === 'KeyG') {
           this.triggerInteract();
         }
       }
     };
     this.keyUpHandler = (e: KeyboardEvent) => {
-      this.keysHeld.delete(e.code);
+      const code = e.code;
+      this.keysHeld.delete(code);
+      if (!this.isActiveRun || this.isPaused) return;
+      if (
+        this.pendingCast &&
+        this.pendingCast.mode === 'quick_indicator' &&
+        this.pendingCast.keyCode === code
+      ) {
+        const cast = this.pendingCast;
+        this.pendingCast = null;
+        this.cooldownPreview = null;
+        if (cast.kind === 'dash') {
+          this.executeDashTowardAim();
+        } else {
+          this.executeSkillSlot(cast.slotIndex);
+        }
+      }
     };
     window.addEventListener('keydown', this.keyDownHandler);
     window.addEventListener('keyup', this.keyUpHandler);
@@ -387,6 +506,8 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       if (this.keyDownHandler) window.removeEventListener('keydown', this.keyDownHandler);
       if (this.keyUpHandler) window.removeEventListener('keyup', this.keyUpHandler);
+      if (this.pointerMoveWindowHandler) window.removeEventListener('pointermove', this.pointerMoveWindowHandler);
+      this.targetingRenderer?.destroy();
       phaserBridge.unregisterController();
     });
 
@@ -446,12 +567,28 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     this.mobileMoveX = 0;
     this.mobileMoveY = 0;
     this.mobileFiring = false;
+    this.pendingCast = null;
+    this.cooldownPreview = null;
+    this.forcedDashAngle = null;
+    this.pointerOverHud = false;
+  }
+
+  public hasPendingCast(): boolean {
+    return this.pendingCast !== null;
+  }
+
+  public cancelPendingCast() {
+    this.pendingCast = null;
+    this.cooldownPreview = null;
+    this.forcedDashAngle = null;
+    this.emitHudSnapshot(false);
   }
 
   public setPaused(paused: boolean) {
     this.isPaused = paused;
     if (paused) {
       this.clearHeldInputs();
+      this.targetingRenderer?.clear();
       if (this.player?.body) {
         (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
       }
@@ -476,6 +613,11 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     this.clearOrbitals();
     this.telegraphGraphics?.clear();
     this.beamGraphics?.clear();
+    this.targetingRenderer?.clear();
+    this.autoTargetId = null;
+    this.lastAutoTarget = null;
+    this.comboHits = 0;
+    this.comboTimer = 0;
   }
 
   public getCurrentHud(): RunHUDSnapshot | null {
@@ -518,6 +660,8 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     this.hitstopTimer = 0;
     this.shakeTrauma = 0;
     this.lastDamagedAt = 0;
+    this.comboHits = 0;
+    this.comboTimer = 0;
     this.footstepTimer = 0;
     this.isPaused = false;
     this.isEndingRun = false;
@@ -697,6 +841,11 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
       this.floorRewardMult = infMod.rewardMult;
       this.floorHasChaosSeal = infMod.id === 'chaos_seal';
     }
+
+    this.pendingCast = null;
+    this.cooldownPreview = null;
+    this.autoTargetId = null;
+    this.lastAutoTarget = null;
 
     this.floorWavePlan = getFloorWavePlan(floorNum, isBoss);
     this.currentWaveIndex = 0;
@@ -1209,6 +1358,7 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     this.updatePools(dt);
     this.updateTimedChallengeAndPortal(dt);
     this.drawTelegraphsAndBeams();
+    this.updateTargetingOverlay(dt);
 
     // Living torchlight flicker on dungeon braziers
     if (this.brazierGlows.length > 0) {
@@ -1266,6 +1416,12 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     if (this.attackCooldown > 0) this.attackCooldown = Math.max(0, this.attackCooldown - dt);
     if (this.swiftKillTimer > 0) this.swiftKillTimer = Math.max(0, this.swiftKillTimer - dt);
     if (this.playerSlowTimer > 0) this.playerSlowTimer = Math.max(0, this.playerSlowTimer - dt);
+    if (this.comboTimer > 0) {
+      this.comboTimer = Math.max(0, this.comboTimer - dt);
+      if (this.comboTimer <= 0) {
+        this.comboHits = 0;
+      }
+    }
 
     const prevFury = this.furyTimer > 0;
     if (this.furyTimer > 0) {
@@ -1300,13 +1456,17 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     // Execute buffered Dash (Space)
     if (this.dashBufferTimer > 0 && this.dashCooldown <= 0 && this.dashTimer <= 0) {
       this.dashBufferTimer = 0;
-      this.dashTimer = 0.17;
+      this.dashTimer = DASH_DURATION_SEC;
       this.dashCooldown = Math.max(
         0.65,
         BALANCE_CONFIG.player.dashCooldownSec * (1 - this.computedStats.cooldownReduction)
       );
       this.invulnTimer = Math.max(this.invulnTimer, BALANCE_CONFIG.player.dashInvulnSec);
-      if (len > 0.01) {
+      if (this.forcedDashAngle !== null) {
+        this.dashDirX = Math.cos(this.forcedDashAngle);
+        this.dashDirY = Math.sin(this.forcedDashAngle);
+        this.forcedDashAngle = null;
+      } else if (len > 0.01) {
         this.dashDirX = mx;
         this.dashDirY = my;
       } else {
@@ -1331,7 +1491,7 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
 
     if (this.dashTimer > 0) {
       this.dashTimer -= dt;
-      const dashSpeed = this.computedStats.moveSpeed * 3.1;
+      const dashSpeed = this.computedStats.moveSpeed * DASH_SPEED_MULT;
       body.setVelocity(this.dashDirX * dashSpeed, this.dashDirY * dashSpeed);
       if (Math.random() < 0.65) {
         const ghost = this.add
@@ -1382,9 +1542,34 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
       }
     }
 
-    // Flip sprite horizontally toward aim
-    const aimAngle = this.getAimAngle();
-    this.player.setFlipX(Math.cos(aimAngle) < 0);
+    // Compute unified auto-attack target lock (prioritizes cursor direction, respects range & hysteresis)
+    const cursorWorld = this.getCursorWorldPoint();
+    const basicSpec = computeBasicAttackSpec(this.classId, this.computedStats, this.skills, this.furyTimer > 0);
+    const targetables = this.getTargetableEnemies();
+    const autoTarget = selectAutoAttackTarget(
+      { x: this.player.x, y: this.player.y },
+      cursorWorld,
+      basicSpec,
+      targetables,
+      this.autoTargetId,
+      this.settings.autoAttack,
+      this.roomWidth,
+      this.roomHeight,
+      this.pillarsLayout
+    );
+    this.autoTargetId = autoTarget.targetId;
+    this.lastAutoTarget = autoTarget;
+
+    // Flip sprite horizontally toward cursor aim (or locked auto-target when auto-attacking)
+    const cursorAngle = this.getAimAngle();
+    const manualFiring = this.mouseDown || this.mobileFiring;
+    const autoFiring =
+      !manualFiring &&
+      !this.pendingCast &&
+      this.settings.autoAttack &&
+      autoTarget.target !== null;
+    const activeAimAngle = manualFiring ? cursorAngle : autoFiring ? autoTarget.aimAngle : cursorAngle;
+    this.player.setFlipX(Math.cos(activeAimAngle) < 0);
 
     // Invulnerability blink & contrast aura sync
     this.player.setAlpha(this.invulnTimer > 0 ? 0.64 : 1);
@@ -1402,33 +1587,122 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
       this.playerShieldRing.setVisible(this.shield > 0);
     }
 
-    // Basic Attack (Mouse held or Mobile fire)
-    if ((this.mouseDown || this.mobileFiring) && this.attackCooldown <= 0) {
-      this.performBasicAttack(aimAngle);
+    // Basic Attack: manual LMB/Mobile aims straight at cursor; Auto-Attack fires at locked in-range target
+    if ((manualFiring || autoFiring) && this.attackCooldown <= 0) {
+      this.performBasicAttack(activeAimAngle, basicSpec);
     }
+  }
+
+  private getCursorWorldPoint(): { x: number; y: number } {
+    if (Math.hypot(this.mobileAimX, this.mobileAimY) > 0.2 && this.player) {
+      return {
+        x: this.player.x + this.mobileAimX * 220,
+        y: this.player.y + this.mobileAimY * 220,
+      };
+    }
+    if (!this.pointerInitialized && this.player) {
+      return { x: this.player.x, y: this.player.y - 160 };
+    }
+    const worldPt = this.cameras.main.getWorldPoint(this.pointerScreenX, this.pointerScreenY);
+    if (!Number.isFinite(worldPt.x) || !Number.isFinite(worldPt.y)) {
+      return this.player ? { x: this.player.x, y: this.player.y - 160 } : { x: 640, y: 480 };
+    }
+    return { x: worldPt.x, y: worldPt.y };
   }
 
   private getAimAngle(): number {
     if (Math.hypot(this.mobileAimX, this.mobileAimY) > 0.2) {
       return Math.atan2(this.mobileAimY, this.mobileAimX);
     }
-    const worldPt = this.cameras.main.getWorldPoint(this.pointerScreenX, this.pointerScreenY);
-    if (!Number.isFinite(worldPt.x) || !Number.isFinite(worldPt.y)) return 0;
+    const worldPt = this.getCursorWorldPoint();
     return Phaser.Math.Angle.Between(this.player.x, this.player.y, worldPt.x, worldPt.y);
   }
 
-  private performBasicAttack(angle: number) {
+  private getTargetableEnemies(): TargetableEnemy[] {
+    const out: TargetableEnemy[] = [];
+    for (const e of this.enemies) {
+      if (e.dying) continue;
+      out.push({
+        id: e.id,
+        x: e.sprite.x,
+        y: e.sprite.y,
+        radius: e.radius,
+        maxHp: e.maxHp,
+        hp: e.hp,
+        dying: e.dying,
+        isBoss: Boolean(e.bossDef),
+        isElite: Boolean(e.eliteMod),
+        name: e.bossDef ? e.bossDef.name : ENEMY_ARCHETYPES[e.archetypeId].name,
+      });
+    }
+    return out;
+  }
+
+  private handleCastKeyDown(kind: 'skill' | 'dash', slotIndex: number, keyCode: string) {
+    if (!this.isActiveRun || this.isPaused || this.isEndingRun) return;
+
+    if (kind === 'dash') {
+      const mode = resolveCastMode(this.settings, 'dash', null);
+      if (this.dashCooldown > 0.02) {
+        this.cooldownPreview = { kind: 'dash', slotIndex: -1, skillId: null, timer: 0.65 };
+        return;
+      }
+      if (mode === 'quick') {
+        this.pendingCast = null;
+        this.cooldownPreview = null;
+        this.forcedDashAngle = null;
+        this.dashBufferTimer = 0.14;
+      } else {
+        this.pendingCast = { kind: 'dash', slotIndex: -1, skillId: null, mode, keyCode };
+        this.cooldownPreview = null;
+      }
+      return;
+    }
+
+    const skillId = this.activeSlotSkills[slotIndex];
+    if (!skillId) return;
+    const lv = this.skills[skillId] ?? 0;
+    if (lv <= 0) return;
+
+    const cdRem = this.skillCooldowns[skillId] ?? 0;
+    if (cdRem > 0.02) {
+      this.cooldownPreview = { kind: 'skill', slotIndex, skillId, timer: 0.65 };
+      return;
+    }
+
+    const mode = resolveCastMode(this.settings, 'skill', skillId);
+    if (mode === 'quick') {
+      this.pendingCast = null;
+      this.cooldownPreview = null;
+      this.executeSkillSlot(slotIndex);
+    } else {
+      this.pendingCast = { kind: 'skill', slotIndex, skillId, mode, keyCode };
+      this.cooldownPreview = null;
+    }
+  }
+
+  private executeDashTowardAim() {
+    if (this.dashCooldown > 0.02 || this.dashTimer > 0) return;
+    this.forcedDashAngle = this.getAimAngle();
+    this.dashBufferTimer = 0.14;
+  }
+
+  private performBasicAttack(
+    angle: number,
+    basicSpec = computeBasicAttackSpec(this.classId, this.computedStats, this.skills, this.furyTimer > 0)
+  ) {
     const cls = CLASSES[this.classId];
     this.attackCooldown = 1 / this.computedStats.attackSpeed;
-    const projCount = this.computedStats.projectiles;
+    this.reticleRecoil = 1;
+    const projCount = basicSpec.projCount;
 
     // Subtle recoil squash relative to supersampled base scale
     this.player.setScale(HERO_BASE_SCALE * 1.12, HERO_BASE_SCALE * 0.9);
 
-    if (cls.attackStyle === 'melee_cleave') {
+    if (basicSpec.style === 'melee_cleave') {
       audioEngine.playAttack('melee');
       this.slashParity = !this.slashParity;
-      const range = this.computedStats.range;
+      const range = basicSpec.range;
       const slashScale = range / 118;
       const swingDir = this.slashParity ? 1 : -1;
       const slash = this.add
@@ -1455,57 +1729,58 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
         this.spawnHitSparks(tipX, tipY, angle + swingDir * 0.45, 0xfdba74, 3, 140);
       }
 
-      // Hit all enemies inside 130° cone
+      // Hit enemies using exact unified cone geometry
+      const coneHits = findConeTargets(
+        { x: this.player.x, y: this.player.y },
+        angle,
+        basicSpec.range,
+        basicSpec.halfAngle,
+        basicSpec.closeRadius,
+        this.getTargetableEnemies()
+      );
+      const hitIds = new Set(coneHits.map((h) => h.id));
       for (const e of this.enemies) {
-        if (e.dying) continue;
-        const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, e.sprite.x, e.sprite.y);
-        if (dist <= range + e.radius) {
-          const angTo = Phaser.Math.Angle.Between(this.player.x, this.player.y, e.sprite.x, e.sprite.y);
-          const diff = Math.abs(Phaser.Math.Angle.Wrap(angTo - angle));
-          if (diff <= 1.25 || dist < 44) {
-            this.damageEnemy(e, this.computedStats.damage, angle, true);
-          }
-        }
+        if (e.dying || !hitIds.has(e.id)) continue;
+        this.damageEnemy(e, this.computedStats.damage, angle, true);
       }
 
       // Bonus shockwave if extraProjectiles > 1 or Demonic Fury Lv7
-      if (projCount > 1 || (this.furyTimer > 0 && (this.skills.demonic_fury ?? 0) >= 7)) {
+      if (basicSpec.bonusShockwave) {
         this.spawnPlayerProjectile(angle, 'proj_shadow_wave', 480, this.computedStats.damage * 0.72, 0.45, 2, 0, 0xf97316);
       }
       return;
     }
 
     const tex =
-      cls.attackStyle === 'twin_dagger'
+      basicSpec.style === 'twin_dagger'
         ? 'proj_dagger'
-        : cls.attackStyle === 'arcane_bolt'
+        : basicSpec.style === 'arcane_bolt'
           ? 'proj_arcane'
-          : cls.attackStyle === 'soul_orb'
+          : basicSpec.style === 'soul_orb'
             ? 'proj_soul'
             : 'proj_arrow';
 
     audioEngine.playAttack(
-      cls.attackStyle === 'twin_dagger' ? 'dagger' : cls.attackStyle === 'multi_arrow' ? 'bow' : 'arcane'
+      basicSpec.style === 'twin_dagger' ? 'dagger' : basicSpec.style === 'multi_arrow' ? 'bow' : 'arcane'
     );
 
-    const speed = cls.attackStyle === 'multi_arrow' ? 660 : cls.attackStyle === 'twin_dagger' ? 590 : 510;
-    const life = Math.max(0.32, this.computedStats.range / speed);
-    const spread = projCount === 1 ? 0 : Math.min(0.45, 0.13 * (projCount - 1));
+    const speed = basicSpec.speed;
+    const life = basicSpec.life;
+    const spread = basicSpec.spread;
 
     for (let i = 0; i < projCount; i++) {
       const offset = projCount === 1 ? 0 : -spread / 2 + (spread / (projCount - 1)) * i;
       const a = angle + offset;
       const dmgMult = projCount > 1 && cls.baseStats.projectiles > 1 ? 0.78 : 1.0;
-      const color = Phaser.Display.Color.HexStringToColor(cls.accentColor).color;
       this.spawnPlayerProjectile(
         a,
         tex,
         speed,
         this.computedStats.damage * dmgMult,
         life,
-        this.computedStats.piercing,
-        cls.attackStyle === 'arcane_bolt' ? 38 : 0,
-        color
+        basicSpec.pierce,
+        basicSpec.explosiveRadius,
+        basicSpec.accentColor
       );
     }
   }
@@ -1566,18 +1841,51 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
   }
 
   public castSkillSlot(slotIndex: number) {
+    // Public HUD/touch button trigger: cancels any active preview and casts directly
+    this.pendingCast = null;
+    this.cooldownPreview = null;
+    this.executeSkillSlot(slotIndex);
+  }
+
+  private executeSkillSlot(slotIndex: number) {
     if (!this.isActiveRun || this.isPaused || this.isEndingRun) return;
     const skillId = this.activeSlotSkills[slotIndex];
     if (!skillId) return;
     const lv = this.skills[skillId] ?? 0;
     if (lv <= 0) return;
-    if ((this.skillCooldowns[skillId] ?? 0) > 0) return;
+    const cdRem = this.skillCooldowns[skillId] ?? 0;
+    if (cdRem > 0.02) {
+      this.cooldownPreview = { kind: 'skill', slotIndex, skillId, timer: 0.65 };
+      return;
+    }
 
     const def = SKILLS[skillId];
+    const spec = computeSkillGeometrySpec(skillId, lv, this.computedStats, this.mods, this.activeSynergies);
+    const cursorWorld = this.getCursorWorldPoint();
+    const targetables = this.getTargetableEnemies();
+    const evalCast = evaluateSkillCast(
+      spec,
+      { x: this.player.x, y: this.player.y },
+      cursorWorld,
+      targetables,
+      this.roomWidth,
+      this.roomHeight,
+      this.pillarsLayout,
+      0
+    );
+
+    // Never waste cooldown on directed/chain skills with no valid target in range
+    if (!evalCast.valid && evalCast.invalidReason === 'no_target') {
+      this.cooldownPreview = { kind: 'skill', slotIndex, skillId, timer: 0.55 };
+      this.pushNotice(`${def.name}: nenhum alvo no alcance.`, 'crimson');
+      return;
+    }
+
     const cd = Math.max(0.6, def.cooldown * (1 - this.computedStats.cooldownReduction));
     this.skillCooldowns[skillId] = cd;
+    this.reticleRecoil = 1;
 
-    const aim = this.getAimAngle();
+    const aim = evalCast.aimAngle;
     const powerScale = def.basePower * (1 + (lv - 1) * BALANCE_CONFIG.skills.perLevelScaling);
     const baseDmg = this.computedStats.damage * powerScale;
 
@@ -1585,61 +1893,69 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
 
     switch (skillId) {
       case 'fireball': {
-        const count = lv >= 4 ? 3 : 1;
-        const spread = count === 1 ? 0 : 0.28;
         const synBonus = this.activeSynergies.includes('fire_tornado') ? 1.25 : 1;
-        for (let i = 0; i < count; i++) {
-          const a = aim + (count === 1 ? 0 : -spread / 2 + (spread / (count - 1)) * i);
+        for (const offset of spec.rayAngles) {
           this.spawnPlayerProjectile(
-            a,
+            aim + offset,
             'proj_fireball',
-            460,
+            spec.speed,
             baseDmg * synBonus,
-            1.4,
-            0,
-            lv >= 7 ? 115 : lv >= 4 ? 90 : 70,
-            0xf97316
+            spec.life,
+            spec.pierce,
+            spec.explosiveRadius,
+            spec.color
           );
         }
         break;
       }
       case 'shadow_slash': {
-        const waves = lv >= 4 ? 2 : 1;
-        for (let i = 0; i < waves; i++) {
-          const offset = waves === 2 ? (i === 0 ? -0.16 : 0.16) : 0;
+        for (const offset of spec.rayAngles) {
           this.spawnPlayerProjectile(
             aim + offset,
             'proj_shadow_wave',
-            540,
+            spec.speed,
             baseDmg,
-            0.55,
-            5,
+            spec.life,
+            spec.pierce,
             0,
-            0xa855f7,
+            spec.color,
             lv >= 7 ? 0.5 : 0
           );
         }
-        if (this.activeSynergies.includes('vampiric_aura')) {
-          this.triggerRadialAoE(this.player.x, this.player.y, 130, baseDmg * 0.55, 0xe11d48, 0.25);
+        if (spec.secondaryAuraRadius > 0) {
+          this.triggerRadialAoE(this.player.x, this.player.y, spec.secondaryAuraRadius, baseDmg * 0.55, 0xe11d48, 0.25);
         }
         break;
       }
       case 'meteor_shower': {
-        const count = lv >= 7 ? 8 : lv >= 4 ? 5 : 3;
-        const living = this.enemies.filter((e) => !e.dying);
-        for (let i = 0; i < count; i++) {
-          const target = living[i % Math.max(1, living.length)];
-          const tx = target ? target.sprite.x + (Math.random() - 0.5) * 40 : this.player.x + (Math.random() - 0.5) * 320;
-          const ty = target ? target.sprite.y + (Math.random() - 0.5) * 40 : this.player.y + (Math.random() - 0.5) * 320;
+        // Strikes inside the exact previewed circular impact zone (prioritizing enemies inside zone)
+        const zoneX = evalCast.targetPoint.x;
+        const zoneY = evalCast.targetPoint.y;
+        const inZone = this.enemies.filter(
+          (e) => !e.dying && Phaser.Math.Distance.Between(zoneX, zoneY, e.sprite.x, e.sprite.y) <= spec.radius + e.radius
+        );
+        for (let i = 0; i < spec.count; i++) {
+          let tx: number;
+          let ty: number;
+          if (inZone.length > 0 && i < inZone.length * 2) {
+            const target = inZone[i % inZone.length];
+            tx = target.sprite.x + (Math.random() - 0.5) * 28;
+            ty = target.sprite.y + (Math.random() - 0.5) * 28;
+          } else {
+            const ang = (Math.PI * 2 * i) / Math.max(1, spec.count) + Math.random() * 0.6;
+            const dist = Math.random() * Math.max(24, spec.radius - spec.subRadius * 0.45);
+            tx = zoneX + Math.cos(ang) * dist;
+            ty = zoneY + Math.sin(ang) * dist;
+          }
           this.hazards.push({
             x: tx,
             y: ty,
-            radius: lv >= 4 ? 86 : 68,
+            radius: spec.subRadius,
             delay: 0.42 + i * 0.1,
             maxDelay: 0.42 + i * 0.1,
             fromPlayer: true,
             damage: baseDmg,
-            color: 0xef4444,
+            color: spec.color,
             kind: 'meteor',
             duration: 0,
             tickTimer: 0,
@@ -1649,44 +1965,35 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
         break;
       }
       case 'chain_lightning': {
-        const jumps = lv >= 7 ? 11 : lv >= 4 ? 7 : 4;
-        const hitSet = new Set<number>();
+        const glacialSyn = this.activeSynergies.includes('glacial_storm');
         let curX = this.player.x;
         let curY = this.player.y;
-        const glacialSyn = this.activeSynergies.includes('glacial_storm');
-
-        for (let j = 0; j < jumps; j++) {
-          let best: EnemyEntity | null = null;
-          let bestD = 300;
-          for (const e of this.enemies) {
-            if (e.dying || hitSet.has(e.id)) continue;
-            const d = Phaser.Math.Distance.Between(curX, curY, e.sprite.x, e.sprite.y);
-            if (d < bestD) {
-              bestD = d;
-              best = e;
-            }
-          }
-          if (!best) break;
-          hitSet.add(best.id);
-          this.drawLightningArc(curX, curY, best.sprite.x, best.sprite.y, glacialSyn ? 0x38bdf8 : 0x60a5fa);
-          const dmg = best.freezeTimer > 0 && glacialSyn ? baseDmg * 1.4 : baseDmg;
-          this.damageEnemy(best, dmg, Phaser.Math.Angle.Between(curX, curY, best.sprite.x, best.sprite.y), false);
+        for (const node of evalCast.chainPath) {
+          const target = this.enemies.find((e) => e.id === node.id && !e.dying);
+          if (!target) continue;
+          this.drawLightningArc(curX, curY, target.sprite.x, target.sprite.y, spec.color);
+          const dmg = target.freezeTimer > 0 && glacialSyn ? baseDmg * 1.4 : baseDmg;
+          this.damageEnemy(
+            target,
+            dmg,
+            Phaser.Math.Angle.Between(curX, curY, target.sprite.x, target.sprite.y),
+            false
+          );
           if (glacialSyn) {
-            best.freezeTimer = Math.max(best.freezeTimer, 1.8);
+            target.freezeTimer = Math.max(target.freezeTimer, 1.8);
           }
-          curX = best.sprite.x;
-          curY = best.sprite.y;
+          curX = target.sprite.x;
+          curY = target.sprite.y;
         }
         break;
       }
       case 'shadow_summon': {
-        const count = lv >= 7 ? 6 : lv >= 4 ? 4 : 2;
         const legionSyn = this.activeSynergies.includes('assassin_legion');
         const cap = 10;
-        for (let i = 0; i < count && this.minions.length < cap; i++) {
-          const ang = (Math.PI * 2 * i) / count;
-          const mx = this.player.x + Math.cos(ang) * 44;
-          const my = this.player.y + Math.sin(ang) * 44;
+        for (let i = 0; i < spec.count && this.minions.length < cap; i++) {
+          const ang = (Math.PI * 2 * i) / spec.count;
+          const mx = this.player.x + Math.cos(ang) * spec.subRadius;
+          const my = this.player.y + Math.sin(ang) * spec.subRadius;
           const sp = this.add.sprite(mx, my, 'minion_shadow').setDepth(52);
           if (legionSyn) sp.setTint(0xc084fc);
           this.minions.push({
@@ -1704,12 +2011,10 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
         break;
       }
       case 'arcane_blast': {
-        const radius = (lv >= 7 ? 210 : lv >= 4 ? 175 : 145) * (1 + this.mods.rangePct * 0.5);
-        this.triggerRadialAoE(this.player.x, this.player.y, radius, baseDmg, 0xc084fc, 0);
+        this.triggerRadialAoE(this.player.x, this.player.y, spec.radius, baseDmg, spec.color, 0);
         if (lv >= 7) {
-          // Destroy hostile projectiles inside radius
           for (const p of this.projectiles) {
-            if (!p.fromPlayer && Phaser.Math.Distance.Between(this.player.x, this.player.y, p.sprite.x, p.sprite.y) <= radius) {
+            if (!p.fromPlayer && Phaser.Math.Distance.Between(this.player.x, this.player.y, p.sprite.x, p.sprite.y) <= spec.radius) {
               p.life = 0;
             }
           }
@@ -1718,32 +2023,26 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
         break;
       }
       case 'time_freeze': {
-        const radius = lv >= 7 ? 420 : 250;
         const freezeDur = lv >= 4 ? 3.2 : 2.3;
-        this.triggerRadialAoE(this.player.x, this.player.y, radius, baseDmg, 0x22d3ee, 0);
+        this.triggerRadialAoE(this.player.x, this.player.y, spec.radius, baseDmg, spec.color, 0);
         for (const e of this.enemies) {
           if (e.dying) continue;
-          if (Phaser.Math.Distance.Between(this.player.x, this.player.y, e.sprite.x, e.sprite.y) <= radius) {
+          if (Phaser.Math.Distance.Between(this.player.x, this.player.y, e.sprite.x, e.sprite.y) <= spec.radius + e.radius) {
             e.freezeTimer = Math.max(e.freezeTimer, e.bossDef ? freezeDur * 0.45 : freezeDur);
           }
         }
         break;
       }
       case 'black_hole': {
-        const worldPt = this.cameras.main.getWorldPoint(this.pointerScreenX, this.pointerScreenY);
-        const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, worldPt.x, worldPt.y);
-        const clampedDist = Math.min(300, Number.isFinite(dist) ? dist : 160);
-        const tx = this.player.x + Math.cos(aim) * clampedDist;
-        const ty = this.player.y + Math.sin(aim) * clampedDist;
         this.hazards.push({
-          x: tx,
-          y: ty,
-          radius: lv >= 7 ? 195 : lv >= 4 ? 155 : 125,
+          x: evalCast.targetPoint.x,
+          y: evalCast.targetPoint.y,
+          radius: spec.radius,
           delay: 0,
           maxDelay: 0.1,
           fromPlayer: true,
           damage: baseDmg,
-          color: 0x9333ea,
+          color: spec.color,
           kind: 'black_hole',
           duration: lv >= 4 ? 4.0 : 3.2,
           tickTimer: 0.25,
@@ -1752,15 +2051,18 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
         break;
       }
       case 'celestial_bolt': {
-        const strikes = lv >= 7 ? 5 : lv >= 4 ? 3 : 1;
-        const targets = [...this.enemies]
-          .filter((e) => !e.dying)
-          .sort((a, b) => (b.bossDef ? 1 : 0) - (a.bossDef ? 1 : 0) || b.maxHp - a.maxHp);
-        for (let i = 0; i < strikes; i++) {
-          const t = targets[i % Math.max(1, targets.length)];
-          if (!t) break;
-          this.drawLightningArc(t.sprite.x, t.sprite.y - 260, t.sprite.x, t.sprite.y, 0xfacc15);
-          this.triggerRadialAoE(t.sprite.x, t.sprite.y, 76, baseDmg * (lv >= 4 && t.bossDef ? 1.35 : 1), 0xfacc15, 0);
+        for (const dtNode of evalCast.directedTargets) {
+          const target = this.enemies.find((e) => e.id === dtNode.id && !e.dying);
+          if (!target) continue;
+          this.drawLightningArc(target.sprite.x, target.sprite.y - 260, target.sprite.x, target.sprite.y, spec.color);
+          this.triggerRadialAoE(
+            target.sprite.x,
+            target.sprite.y,
+            spec.radius,
+            baseDmg * (lv >= 4 && target.bossDef ? 1.35 : 1),
+            spec.color,
+            0
+          );
         }
         break;
       }
@@ -1768,11 +2070,119 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
         this.furyTimer = lv >= 4 ? 6.5 : 5.0;
         this.recomputeStats(false);
         this.shakeTrauma = Math.max(this.shakeTrauma, 0.3);
-        this.spawnBurst(this.player.x, this.player.y, 0xdc2626, 18, 160);
+        this.spawnBurst(this.player.x, this.player.y, spec.color, 18, 160);
         this.pushNotice('FÚRIA DEMONÍACA ATIVADA!', 'crimson');
         break;
       }
     }
+  }
+
+  private updateTargetingOverlay(dt: number) {
+    if (!this.targetingRenderer || !this.player || !this.isActiveRun || this.isPaused) {
+      this.targetingRenderer?.clear();
+      return;
+    }
+
+    if (this.reticleRecoil > 0) {
+      this.reticleRecoil = Math.max(0, this.reticleRecoil - dt * 7.5);
+    }
+
+    if (this.cooldownPreview) {
+      this.cooldownPreview.timer -= dt;
+      if (this.cooldownPreview.timer <= 0) {
+        this.cooldownPreview = null;
+      }
+    }
+
+    const origin = { x: this.player.x, y: this.player.y };
+    const cursorWorld = this.getCursorWorldPoint();
+    const targetables = this.getTargetableEnemies();
+    const basicSpec = computeBasicAttackSpec(this.classId, this.computedStats, this.skills, this.furyTimer > 0);
+    const autoTarget =
+      this.lastAutoTarget ??
+      selectAutoAttackTarget(
+        origin,
+        cursorWorld,
+        basicSpec,
+        targetables,
+        this.autoTargetId,
+        this.settings.autoAttack,
+        this.roomWidth,
+        this.roomHeight,
+        this.pillarsLayout
+      );
+
+    // Evaluate active pending cast (or brief cooldown preview) using exact unified geometry
+    let activeCast = null;
+    const previewSource = this.pendingCast ?? this.cooldownPreview;
+    if (previewSource) {
+      if (previewSource.kind === 'dash') {
+        const dashSpec = computeDashGeometrySpec(this.computedStats);
+        activeCast = evaluateSkillCast(
+          dashSpec,
+          origin,
+          cursorWorld,
+          targetables,
+          this.roomWidth,
+          this.roomHeight,
+          this.pillarsLayout,
+          this.dashCooldown
+        );
+      } else if (previewSource.skillId) {
+        const lv = this.skills[previewSource.skillId] ?? 0;
+        if (lv > 0) {
+          const skillSpec = computeSkillGeometrySpec(
+            previewSource.skillId,
+            lv,
+            this.computedStats,
+            this.mods,
+            this.activeSynergies
+          );
+          activeCast = evaluateSkillCast(
+            skillSpec,
+            origin,
+            cursorWorld,
+            targetables,
+            this.roomWidth,
+            this.roomHeight,
+            this.pillarsLayout,
+            this.skillCooldowns[previewSource.skillId] ?? 0
+          );
+        }
+      }
+    }
+
+    // Subtle passive aura outlines (electric aura / orbital blades)
+    const passiveAuras: Array<{ radius: number; color: number }> = [];
+    const eaLv = this.skills.electric_aura ?? 0;
+    if (eaLv > 0) passiveAuras.push({ radius: eaLv >= 4 ? 140 : 104, color: 0x38bdf8 });
+    const orbLv = this.skills.orbital_blades ?? 0;
+    if (orbLv > 0) passiveAuras.push({ radius: orbLv >= 4 ? 86 : 68, color: 0xcbd5e1 });
+
+    const isTouchOnly =
+      this.settings.mobileControls === 'on' ||
+      (this.settings.mobileControls === 'auto' &&
+        typeof window !== 'undefined' &&
+        ('ontouchstart' in window || navigator.maxTouchPoints > 0) &&
+        !this.pointerInitialized);
+
+    this.targetingRenderer.render({
+      elapsedSec: this.elapsedSec,
+      playerPos: origin,
+      cursorScreen: { x: this.pointerScreenX, y: this.pointerScreenY },
+      cursorWorld,
+      cameraZoom: this.cameras.main.zoom || 1,
+      showReticle: !isTouchOnly && !this.pointerOverHud,
+      showAttackRange: this.settings.showAttackRange,
+      autoAttackEnabled: this.settings.autoAttack,
+      basicSpec,
+      autoTarget,
+      activeCast,
+      enemies: targetables,
+      pillars: this.pillarsLayout,
+      passiveAuras,
+      recoilKick: this.reticleRecoil,
+    });
   }
 
   private updatePassivesAndSynergies(dt: number) {
@@ -1933,6 +2343,7 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
 
   private rebuildOrbitals() {
     this.clearOrbitals();
+    if (!this.player) return;
     const lv = this.skills.orbital_blades ?? 0;
     if (lv <= 0) return;
     const count = lv >= 7 ? 6 : lv >= 4 ? 4 : 2;
@@ -2846,6 +3257,8 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     );
 
     e.hp -= res.damage;
+    this.comboHits += 1;
+    this.comboTimer = COMBO_WINDOW_SEC;
     e.flashTimer = res.isCrit ? 0.09 : 0.068;
     // Crisp pure white / incandescent gold solid silhouette flash (Hades / Dead Cells impact read)
     e.sprite.setTint(res.isCrit ? 0xfef08a : 0xffffff).setTintMode(Phaser.TintModes.FILL);
@@ -3709,6 +4122,9 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
 
   public triggerDash() {
     if (!this.isActiveRun || this.isPaused) return;
+    this.pendingCast = null;
+    this.cooldownPreview = null;
+    this.forcedDashAngle = null;
     this.dashBufferTimer = 0.14;
   }
 
@@ -4100,6 +4516,17 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
         pillars: this.pillarsLayout,
       },
       recentNotice: this.recentNotice,
+      combo:
+        this.comboHits >= COMBO_MIN_HITS && this.comboTimer > 0
+          ? {
+              hits: this.comboHits,
+              multiplier: computeComboMultiplier(this.comboHits),
+              remainingSec: this.comboTimer,
+              maxWindowSec: COMBO_WINDOW_SEC,
+            }
+          : null,
+      activeCastSlot: this.pendingCast ? this.pendingCast.slotIndex : null,
+      autoAttackEnabled: this.settings.autoAttack,
     };
 
     this.lastHudSnapshot = snap;

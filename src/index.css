@@ -32,6 +32,11 @@ body,
   font-family: var(--font-body);
 }
 
+body[data-reticle='true'] [data-testid='phaser-canvas-container'],
+body[data-reticle='true'] [data-testid='phaser-canvas-container'] canvas {
+  cursor: none !important;
+}
+
 .font-display {
   font-family: var(--font-display);
 }
@@ -143,10 +148,24 @@ body,
   animation: lowHpPulse 1.15s ease-in-out infinite;
 }
 
+@keyframes comboPop {
+  0% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-combo-pop {
+  animation: comboPop 150ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-rarity-burst,
   .animate-modal-enter,
-  .animate-low-hp {
+  .animate-low-hp,
+  .animate-combo-pop {
     animation: none;
   }
 }

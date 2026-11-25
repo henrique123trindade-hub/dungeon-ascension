@@ -43,6 +43,8 @@ export interface DungeonController {
   setMobileInput: (moveX: number, moveY: number, aimX: number, aimY: number, firing: boolean) => void;
   applySettings: (settings: SettingsData) => void;
   clearHeldInputs: () => void;
+  hasPendingCast: () => boolean;
+  cancelPendingCast: () => void;
   stopRun: () => void;
   getCurrentHud: () => RunHUDSnapshot | null;
 }

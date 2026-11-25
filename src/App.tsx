@@ -61,10 +61,11 @@ export default function App() {
     });
   }, []);
 
-  // Mirror game state to document.body.dataset.state
+  // Mirror game state & custom gameplay reticle visibility to document.body.dataset
   useEffect(() => {
     document.body.dataset.state = gameState;
-  }, [gameState]);
+    document.body.dataset.reticle = gameState === 'playing' && activeModal === null ? 'true' : 'false';
+  }, [gameState, activeModal]);
 
   // Apply audio & Phaser settings on mount and change
   useEffect(() => {
@@ -233,6 +234,10 @@ export default function App() {
 
       if (e.code === 'Escape' || e.code === 'KeyP') {
         if (st === 'playing') {
+          if (e.code === 'Escape' && !modal && phaserBridge.getController()?.hasPendingCast()) {
+            phaserBridge.getController()?.cancelPendingCast();
+            return;
+          }
           if (modal === 'character') {
             resumePlaying();
           } else if (modal === 'settings') {

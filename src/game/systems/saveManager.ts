@@ -1,10 +1,13 @@
 import { ACHIEVEMENTS, getPermanentUpgradeCost, PERMANENT_UPGRADES } from '../data/achievements';
+import { SKILLS } from '../data/skills';
 import type {
+  CastMode,
   ClassId,
   PermanentUpgrades,
   RunRecord,
   SaveData,
   SettingsData,
+  SkillId,
   SynergyId,
 } from '../types';
 
@@ -20,6 +23,11 @@ export function createDefaultSettings(): SettingsData {
     screenShake: true,
     damageNumbers: true,
     mobileControls: 'auto',
+    autoAttack: true,
+    showAttackRange: true,
+    defaultCastMode: 'quick_indicator',
+    dashCastMode: 'quick_indicator',
+    skillCastModes: {},
   };
 }
 
@@ -84,6 +92,18 @@ export function validateAndMigrateSave(raw: unknown): SaveData {
   const setRaw = (obj.settings && typeof obj.settings === 'object'
     ? obj.settings
     : {}) as Record<string, unknown>;
+  const isCastMode = (v: unknown): v is CastMode =>
+    v === 'normal' || v === 'quick' || v === 'quick_indicator';
+
+  const skillCastModes: Partial<Record<SkillId, CastMode>> = {};
+  if (setRaw.skillCastModes && typeof setRaw.skillCastModes === 'object') {
+    for (const [k, v] of Object.entries(setRaw.skillCastModes as Record<string, unknown>)) {
+      if (k in SKILLS && isCastMode(v)) {
+        skillCastModes[k as SkillId] = v;
+      }
+    }
+  }
+
   const settings: SettingsData = {
     masterVolume: Math.min(1, num(setRaw.masterVolume, 0.7)),
     sfxVolume: Math.min(1, num(setRaw.sfxVolume, 0.85)),
@@ -98,6 +118,11 @@ export function validateAndMigrateSave(raw: unknown): SaveData {
       setRaw.mobileControls === 'on' || setRaw.mobileControls === 'off' || setRaw.mobileControls === 'auto'
         ? setRaw.mobileControls
         : 'auto',
+    autoAttack: typeof setRaw.autoAttack === 'boolean' ? setRaw.autoAttack : true,
+    showAttackRange: typeof setRaw.showAttackRange === 'boolean' ? setRaw.showAttackRange : true,
+    defaultCastMode: isCastMode(setRaw.defaultCastMode) ? setRaw.defaultCastMode : 'quick_indicator',
+    dashCastMode: isCastMode(setRaw.dashCastMode) ? setRaw.dashCastMode : 'quick_indicator',
+    skillCastModes,
   };
 
   const selectedClass = VALID_CLASSES.includes(obj.selectedClass as ClassId)

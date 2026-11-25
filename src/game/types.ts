@@ -256,6 +256,8 @@ export interface PermanentUpgrades {
   rareLootChance: number;
 }
 
+export type CastMode = 'normal' | 'quick' | 'quick_indicator';
+
 export interface SettingsData {
   masterVolume: number;
   sfxVolume: number;
@@ -264,6 +266,11 @@ export interface SettingsData {
   screenShake: boolean;
   damageNumbers: boolean;
   mobileControls: 'auto' | 'on' | 'off';
+  autoAttack: boolean;
+  showAttackRange: boolean;
+  defaultCastMode: CastMode;
+  dashCastMode: CastMode;
+  skillCastModes: Partial<Record<SkillId, CastMode>>;
 }
 
 export interface RunRecord {
@@ -407,6 +414,14 @@ export interface RunHUDSnapshot {
   inventory: EquipmentItem[];
   minimap: MinimapSnapshot;
   recentNotice: { text: string; tone: 'gold' | 'crimson' | 'violet' | 'emerald'; id: number } | null;
+  combo: {
+    hits: number;
+    multiplier: number;
+    remainingSec: number;
+    maxWindowSec: number;
+  } | null;
+  activeCastSlot: number | null; // 0..3 for Q/E/R/F, -1 for Dash, null when idle
+  autoAttackEnabled: boolean;
 }
 
 export interface RunSummarySnapshot {

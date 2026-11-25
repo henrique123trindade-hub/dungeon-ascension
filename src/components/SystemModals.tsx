@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { CLASSES } from '../game/data/classes';
-import { SYNERGIES } from '../game/data/skills';
-import type { RunSummarySnapshot, SettingsData } from '../game/types';
+import { SKILL_LIST, SYNERGIES } from '../game/data/skills';
+import type { CastMode, RunSummarySnapshot, SettingsData, SkillId } from '../game/types';
 import { CrystalIcon } from './Icons';
 
 interface PauseModalProps {
@@ -195,6 +195,18 @@ interface SettingsModalProps {
 
 export function SettingsModal({ settings, onUpdate, onResetSave, onClose }: SettingsModalProps) {
   const [confirmReset, setConfirmReset] = useState(false);
+  const [showPerSkillCast, setShowPerSkillCast] = useState(false);
+  const activeSkills = SKILL_LIST.filter((s) => s.type === 'active');
+
+  const setSkillMode = (skillId: SkillId, mode: CastMode | 'default') => {
+    const nextMap = { ...(settings.skillCastModes ?? {}) };
+    if (mode === 'default') {
+      delete nextMap[skillId];
+    } else {
+      nextMap[skillId] = mode;
+    }
+    onUpdate({ ...settings, skillCastModes: nextMap });
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/82 p-4">
@@ -202,9 +214,9 @@ export function SettingsModal({ settings, onUpdate, onResetSave, onClose }: Sett
         role="dialog"
         aria-modal="true"
         aria-label="Configurações"
-        className="dark-panel animate-modal-enter w-full max-w-lg p-6"
+        className="dark-panel animate-modal-enter w-full max-w-xl max-h-[88vh] flex flex-col p-6"
       >
-        <div className="flex items-center justify-between pb-4 border-b border-white/10">
+        <div className="flex items-center justify-between pb-4 border-b border-white/10 shrink-0">
           <h2 className="font-display text-xl font-bold text-[#f8e3a8]">Configurações</h2>
           <button
             type="button"
@@ -215,7 +227,7 @@ export function SettingsModal({ settings, onUpdate, onResetSave, onClose }: Sett
           </button>
         </div>
 
-        <div className="mt-5 space-y-4 text-sm">
+        <div className="mt-4 space-y-4 text-sm overflow-y-auto custom-scroll pr-1">
           <div>
             <div className="flex justify-between text-xs text-[#c7bfb2] mb-1.5">
               <label htmlFor="vol-master">Volume Geral</label>
@@ -305,6 +317,134 @@ export function SettingsModal({ settings, onUpdate, onResetSave, onClose }: Sett
             checked={settings.damageNumbers}
             onChange={(v) => onUpdate({ ...settings, damageNumbers: v })}
           />
+
+          {/* Combat, Targeting & Cast Modes */}
+          <div className="pt-3 border-t border-white/10 space-y-3">
+            <div className="text-[11px] font-mono-num uppercase tracking-widest text-[#d4a64a]">
+              Mira, Ataque Automático e Conjuração
+            </div>
+
+            <ToggleRow
+              label="Ataque Automático (prioriza direção da mira)"
+              checked={settings.autoAttack}
+              onChange={(v) => onUpdate({ ...settings, autoAttack: v })}
+            />
+            <ToggleRow
+              label="Exibir Alcance do Ataque Básico"
+              checked={settings.showAttackRange}
+              onChange={(v) => onUpdate({ ...settings, showAttackRange: v })}
+            />
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-1">
+              <div>
+                <div className="text-[#d6cfc2]">Modo de Conjuração Padrão</div>
+                <div className="text-[11px] text-[#9c9487]">
+                  {settings.defaultCastMode === 'quick_indicator'
+                    ? 'Segure a tecla para pré-visualizar; solte para conjurar.'
+                    : settings.defaultCastMode === 'normal'
+                      ? 'Tecla mostra o indicador; clique esquerdo conjura; Esc/Dir. cancela.'
+                      : 'Tecla conjura imediatamente na direção do cursor.'}
+                </div>
+              </div>
+              <div className="flex gap-1 shrink-0">
+                {(
+                  [
+                    ['normal', 'Normal'],
+                    ['quick', 'Rápido'],
+                    ['quick_indicator', 'Indicador'],
+                  ] as Array<[CastMode, string]>
+                ).map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => onUpdate({ ...settings, defaultCastMode: mode })}
+                    className={`px-2.5 py-1 text-xs border cursor-pointer ${
+                      settings.defaultCastMode === mode
+                        ? 'bg-[#d4a64a] text-[#0b0a0e] border-[#f8e3a8] font-bold'
+                        : 'bg-[#121018] text-[#b8afa1] border-white/15 hover:border-white/30'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between py-1">
+              <span className="text-[#d6cfc2]">Modo da Esquiva (Espaço)</span>
+              <div className="flex gap-1">
+                {(
+                  [
+                    ['normal', 'Normal'],
+                    ['quick', 'Rápido'],
+                    ['quick_indicator', 'Indicador'],
+                  ] as Array<[CastMode, string]>
+                ).map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => onUpdate({ ...settings, dashCastMode: mode })}
+                    className={`px-2.5 py-1 text-xs border cursor-pointer ${
+                      settings.dashCastMode === mode
+                        ? 'bg-[#d4a64a] text-[#0b0a0e] border-[#f8e3a8] font-bold'
+                        : 'bg-[#121018] text-[#b8afa1] border-white/15 hover:border-white/30'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <button
+                type="button"
+                onClick={() => setShowPerSkillCast((prev) => !prev)}
+                className="w-full flex items-center justify-between px-3 py-2 bg-[#14111c] hover:bg-[#1c1828] border border-white/12 text-xs text-[#e8e3d9] cursor-pointer"
+              >
+                <span>Conjuração Individual por Habilidade ({Object.keys(settings.skillCastModes ?? {}).length} personalizadas)</span>
+                <span className="font-mono-num text-[#d4a64a]">{showPerSkillCast ? '−' : '+'}</span>
+              </button>
+
+              {showPerSkillCast && (
+                <div className="mt-2 space-y-1.5 border border-white/10 bg-[#0e0c14] p-2.5">
+                  {activeSkills.map((sk) => {
+                    const current = settings.skillCastModes?.[sk.id] ?? 'default';
+                    return (
+                      <div key={sk.id} className="flex items-center justify-between gap-2 text-xs py-1 border-b border-white/5 last:border-b-0">
+                        <span className="truncate font-medium" style={{ color: sk.color }}>
+                          {sk.name}
+                        </span>
+                        <div className="flex gap-1 shrink-0">
+                          {(
+                            [
+                              ['default', 'Padrão'],
+                              ['normal', 'Normal'],
+                              ['quick', 'Rápido'],
+                              ['quick_indicator', 'Indic.'],
+                            ] as Array<[CastMode | 'default', string]>
+                          ).map(([mode, label]) => (
+                            <button
+                              key={mode}
+                              type="button"
+                              onClick={() => setSkillMode(sk.id, mode)}
+                              className={`px-2 py-0.5 text-[11px] border cursor-pointer ${
+                                current === mode
+                                  ? 'bg-[#d4a64a] text-[#0b0a0e] border-[#f8e3a8] font-bold'
+                                  : 'bg-[#121018] text-[#9c9487] border-white/12 hover:text-white'
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
 
           <div className="pt-4 border-t border-white/10 flex items-center justify-between">
             <span className="text-xs text-[#9c9487]">Dados salvos localmente no navegador</span>

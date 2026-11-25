@@ -2,6 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   calculateAttackDamage,
+  COMBO_MIN_HITS,
+  COMBO_WINDOW_SEC,
+  computeComboMultiplier,
   computePlayerStats,
   createEmptyModifiers,
   createStarterWeapon,
@@ -259,6 +262,21 @@ test('Floor 10 Goblin King stays challenging without unfair 2-shot damage or blo
     `Goblin King hits-to-kill Lv10 Warrior (${hitsToKillWarrior.toFixed(2)}) should punish mistakes without 2-shotting`
   );
   assert.ok(gdHp > gkHp * 20, 'Floor 50 Mega-Boss must scale steeply above Floor 10 mini-boss');
+});
+
+test('combo multiplier escalates across hit streak tiers and stays inactive below minimum threshold', () => {
+  assert.ok(COMBO_WINDOW_SEC > 1.5 && COMBO_WINDOW_SEC <= 4);
+  assert.equal(COMBO_MIN_HITS, 3);
+  assert.equal(computeComboMultiplier(0), 1);
+  assert.equal(computeComboMultiplier(2), 1);
+  assert.equal(computeComboMultiplier(3), 1.1);
+  assert.equal(computeComboMultiplier(5), 1.1);
+  assert.equal(computeComboMultiplier(6), 1.25);
+  assert.equal(computeComboMultiplier(9), 1.25);
+  assert.equal(computeComboMultiplier(10), 1.5);
+  assert.equal(computeComboMultiplier(15), 1.75);
+  assert.equal(computeComboMultiplier(25), 2.0);
+  assert.equal(computeComboMultiplier(80), 2.0);
 });
 
 
