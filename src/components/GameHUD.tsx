@@ -75,69 +75,94 @@ export function GameHUD({
       {/* Subtle critical low-HP or fresh-hit peripheral crimson vignette */}
       {(lowHpCritical || hitFlash) && (
         <div
-          className="fixed inset-0 pointer-events-none transition-opacity duration-200"
+          className={`fixed inset-0 pointer-events-none transition-opacity duration-200 ${lowHpCritical && !hitFlash ? 'animate-low-hp' : ''}`}
           style={{
             boxShadow: hitFlash
-              ? 'inset 0 0 120px rgba(220, 38, 38, 0.65)'
+              ? 'inset 0 0 130px rgba(220, 38, 38, 0.68)'
               : 'inset 0 0 95px rgba(185, 28, 28, 0.5)',
           }}
         />
       )}
 
       {/* TOP-LEFT CLUSTER: Vitality, XP, Level, Class Evolution, Active Multipliers */}
-      <div className="fixed top-3.5 left-4 flex flex-col gap-2 w-[264px] sm:w-[292px]">
-        <div className="flex items-center gap-3">
-          {/* Level & Class Crest */}
-          <div
-            className="w-11 h-11 bg-[#121018]/92 border border-[#d4a64a]/55 flex flex-col items-center justify-center shrink-0 shadow-lg"
-            style={{ color: cls.accentColor }}
-          >
-            <ClassIcon classId={hud.classId} className="w-5 h-5" />
-            <span className="font-mono-num text-[10px] font-bold text-[#f8e3a8] leading-none mt-0.5">
-              Nv.{hud.level}
-            </span>
+      <div className="fixed top-3.5 left-4 flex flex-col gap-2 w-[274px] sm:w-[304px]">
+        <div className="relative hud-iron-frame px-2.5 py-2 flex items-center gap-3">
+          <CornerNotches />
+
+          {/* Class Crest Medallion + Integrated Level Plate */}
+          <div className="relative shrink-0">
+            <div
+              className="w-12 h-12 bg-[#0c0a11] border border-[#d4a64a]/60 flex flex-col items-center justify-center shadow-inner"
+              style={{
+                color: cls.accentColor,
+                boxShadow: `inset 0 0 14px ${cls.accentColor}24`,
+              }}
+            >
+              <ClassIcon classId={hud.classId} className="w-5 h-5" />
+              <span className="font-mono-num text-[10px] font-bold text-[#f8e3a8] leading-none mt-1 tracking-tight">
+                NV.{hud.level}
+              </span>
+            </div>
+            <span
+              className="absolute -bottom-0.5 inset-x-1.5 h-[2px]"
+              style={{ backgroundColor: cls.accentColor }}
+            />
           </div>
 
           <div className="flex-1 min-w-0">
             <div className="flex items-baseline justify-between gap-2 hud-text-shadow">
-              <span className="font-display text-xs sm:text-sm font-bold text-[#f4efe6] truncate">
+              <span className="font-display text-xs sm:text-[13px] font-bold text-[#f4efe6] tracking-wide truncate">
                 {hud.evolutionTitle}
               </span>
-              <span className="font-mono-num text-xs text-[#e8e3d9]">
-                {hud.hp}/{hud.maxHp}
+              <span className="font-mono-num text-[11px] font-semibold text-[#f1ece2] shrink-0">
+                {hud.hp}
+                <span className="text-[#9c9487]">/{hud.maxHp}</span>
                 {hud.shield > 0 ? <span className="text-[#facc15]"> +{hud.shield}</span> : null}
               </span>
             </div>
 
-            {/* HP Bar with delayed damage ghost trail + Shield */}
-            <div className="relative h-3.5 mt-1 bg-[#0b0a0e]/95 border border-[#d4a64a]/35 overflow-hidden">
+            {/* Segmented Metallic HP Bar with trailing damage ghost + Shield */}
+            <div
+              className={`relative h-3.5 mt-1.5 bg-[#09080c] border overflow-hidden ${
+                lowHpCritical ? 'border-[#ef4444]/85' : 'border-[#d4a64a]/45'
+              }`}
+            >
               <div
-                className="absolute inset-y-0 left-0 bg-[#f59e0b]/70 transition-[width] duration-300"
+                className="absolute inset-y-0 left-0 bg-[#f59e0b]/75 transition-[width] duration-300"
                 style={{ width: `${Math.max(hpPct, ghostHpPct)}%` }}
               />
               <div
-                className="absolute inset-y-0 left-0 bg-[#b83232]"
+                className="absolute inset-y-0 left-0 bg-[#b83232] hud-bar-sheen transition-[width] duration-100"
                 style={{ width: `${hpPct}%` }}
               />
               {shieldPct > 0 && (
                 <div
-                  className="absolute inset-y-0 left-0 bg-[#facc15]/55 border-r border-[#fef08a]"
+                  className="absolute inset-y-0 left-0 bg-[#facc15]/55 border-r border-[#fef08a] hud-bar-sheen"
                   style={{ width: `${Math.min(100, shieldPct)}%` }}
                 />
               )}
+              {/* Tactical 25% HP readability notches */}
+              <div className="absolute inset-y-0 left-1/4 w-px bg-black/45 pointer-events-none" />
+              <div className="absolute inset-y-0 left-1/2 w-px bg-black/45 pointer-events-none" />
+              <div className="absolute inset-y-0 left-3/4 w-px bg-black/45 pointer-events-none" />
             </div>
 
-            {/* XP Bar */}
-            <div className="relative h-1.5 mt-1 bg-[#0b0a0e]/95 border border-white/15 overflow-hidden">
-              <div
-                className="absolute inset-y-0 left-0 bg-[#38bdf8]"
-                style={{ width: `${xpPct}%` }}
-              />
+            {/* Crystalline XP Bar */}
+            <div className="flex items-center gap-2 mt-1.5">
+              <div className="relative flex-1 h-1.5 bg-[#09080c] border border-white/15 overflow-hidden">
+                <div
+                  className="absolute inset-y-0 left-0 bg-[#38bdf8] hud-bar-sheen transition-[width] duration-200"
+                  style={{ width: `${xpPct}%` }}
+                />
+              </div>
+              <span className="font-mono-num text-[9px] text-[#94a3b8] tracking-wider shrink-0">
+                EXP {Math.round(xpPct)}%
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Active Multipliers & Buffs (unboxed crisp metadata) */}
+        {/* Active Multipliers & Buffs (crisp unboxed telemetry) */}
         {(hud.activeMultipliers.length > 0 || hud.activeBuffs.length > 0) && (
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] font-mono-num hud-text-shadow pl-1">
             {hud.activeMultipliers.map((m) => (
@@ -154,47 +179,67 @@ export function GameHUD({
         )}
       </div>
 
-      {/* TOP-CENTER: Boss Health Bar OR Timed Challenge OR Floor Notice */}
-      <div className="fixed top-3.5 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 w-[90vw] max-w-[460px]">
+      {/* TOP-CENTER: Boss Health Banner OR Timed Challenge OR Floor Notice */}
+      <div className="fixed top-3.5 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 w-[90vw] max-w-[472px]">
         {hud.boss && (
-          <div className="w-full bg-[#110e16]/95 border border-[#d4a64a]/65 px-4 py-2.5 shadow-2xl">
-            <div className="flex items-baseline justify-between gap-2">
-              <div className="min-w-0">
-                <span className="font-display text-sm sm:text-base font-bold text-[#f8e3a8] tracking-wide">
+          <div className="relative w-full hud-iron-frame border-[#d4a64a]/70 px-4 py-2.5">
+            <CornerNotches gold />
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex items-baseline gap-2">
+                <span className="font-display text-sm sm:text-base font-bold text-[#f8e3a8] tracking-wider truncate">
                   {hud.boss.name}
                 </span>
-                <span className="text-[11px] text-[#b8afa1] ml-2 hidden sm:inline">
+                <span className="text-[11px] text-[#b8afa1] hidden sm:inline truncate">
                   {hud.boss.title}
                 </span>
               </div>
-              <span className="font-mono-num text-xs text-[#fca5a5] shrink-0">
-                Fase {hud.boss.phase}/{hud.boss.maxPhases} · {hud.boss.hp}/{hud.boss.maxHp}
-              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                {/* Phase diamond indicators */}
+                <div className="flex items-center gap-1" aria-label={`Fase ${hud.boss.phase} de ${hud.boss.maxPhases}`}>
+                  {Array.from({ length: hud.boss.maxPhases }).map((_, pIdx) => {
+                    const active = pIdx + 1 <= hud.boss!.phase;
+                    return (
+                      <span
+                        key={pIdx}
+                        className={`w-2 h-2 rotate-45 border ${
+                          active
+                            ? 'bg-[#f59e0b] border-[#fef08a]'
+                            : 'bg-[#1a1522] border-[#d4a64a]/40'
+                        }`}
+                      />
+                    );
+                  })}
+                </div>
+                <span className="font-mono-num text-[11px] font-semibold text-[#fca5a5]">
+                  {hud.boss.hp}/{hud.boss.maxHp}
+                </span>
+              </div>
             </div>
-            <div className="relative h-3.5 mt-1.5 bg-[#09080c] border border-[#dc2626]/60 overflow-hidden">
+
+            <div className="relative h-4 mt-1.5 bg-[#09080c] border border-[#dc2626]/65 overflow-hidden">
               <div
-                className="absolute inset-y-0 left-0 bg-[#f59e0b]/75 transition-[width] duration-300"
+                className="absolute inset-y-0 left-0 bg-[#f59e0b]/80 transition-[width] duration-300"
                 style={{ width: `${Math.max(bossHpPct, bossGhostPct)}%` }}
               />
               <div
-                className="absolute inset-y-0 left-0 bg-[#dc2626] transition-[width] duration-100"
+                className="absolute inset-y-0 left-0 bg-[#c92a2a] hud-bar-sheen transition-[width] duration-100"
                 style={{ width: `${bossHpPct}%` }}
               />
               {/* Phase transition markers */}
               {hud.boss.maxPhases === 3 ? (
                 <>
-                  <div className="absolute inset-y-0 left-[35%] w-px bg-[#f8e3a8]/75" />
-                  <div className="absolute inset-y-0 left-[70%] w-px bg-[#f8e3a8]/75" />
+                  <div className="absolute inset-y-0 left-[35%] w-0.5 bg-[#fef08a]/85" />
+                  <div className="absolute inset-y-0 left-[70%] w-0.5 bg-[#fef08a]/85" />
                 </>
               ) : (
-                <div className="absolute inset-y-0 left-[50%] w-px bg-[#f8e3a8]/75" />
+                <div className="absolute inset-y-0 left-[50%] w-0.5 bg-[#fef08a]/85" />
               )}
             </div>
           </div>
         )}
 
         {hud.timedChallenge && (
-          <div className="bg-[#14111a]/92 border border-[#d4a64a]/50 px-3.5 py-1 text-xs font-mono-num text-[#f8e3a8]">
+          <div className="hud-iron-frame px-3.5 py-1 text-xs font-mono-num text-[#f8e3a8]">
             Desafio Contra o Tempo · {hud.timedChallenge.remainingSec.toFixed(1)}s
           </div>
         )}
@@ -202,16 +247,16 @@ export function GameHUD({
         {hud.recentNotice && (
           <div
             key={hud.recentNotice.id}
-            className="px-3.5 py-1.5 bg-[#121018]/92 border text-xs font-medium tracking-wide hud-text-shadow animate-modal-enter"
+            className="relative px-4 py-1.5 bg-[#121018]/94 border-y border-x text-xs font-medium tracking-wide hud-text-shadow animate-modal-enter"
             style={{
               borderColor:
                 hud.recentNotice.tone === 'crimson'
-                  ? 'rgba(220,38,38,0.65)'
+                  ? 'rgba(220,38,38,0.68)'
                   : hud.recentNotice.tone === 'violet'
-                    ? 'rgba(192,132,252,0.65)'
+                    ? 'rgba(192,132,252,0.68)'
                     : hud.recentNotice.tone === 'emerald'
-                      ? 'rgba(52,211,153,0.65)'
-                      : 'rgba(212,166,74,0.65)',
+                      ? 'rgba(52,211,153,0.68)'
+                      : 'rgba(212,166,74,0.68)',
               color:
                 hud.recentNotice.tone === 'crimson'
                   ? '#fca5a5'
@@ -229,15 +274,15 @@ export function GameHUD({
 
       {/* TOP-RIGHT CLUSTER: Floor, Biome, Remaining Enemies, Currencies, Minimap & Utility Icons */}
       <div className="fixed top-3.5 right-4 flex flex-col items-end gap-2">
-        <div className="flex items-start gap-3">
-          <div className="text-right hud-text-shadow">
-            <div className="font-display text-sm sm:text-base font-bold text-[#f8e3a8] leading-tight">
-              Andar {hud.floor} · {hud.biomeName}
+        <div className="flex items-start gap-2.5">
+          <div className="hud-iron-frame px-3 py-2 text-right">
+            <div className="font-display text-xs sm:text-sm font-bold text-[#f8e3a8] tracking-wide leading-tight">
+              Andar {hud.floor} <span className="text-[#d4a64a]/60 mx-0.5">·</span> {hud.biomeName}
             </div>
-            <div className="text-xs text-[#c7bfb2] font-mono-num mt-0.5 flex items-center justify-end gap-2.5">
+            <div className="text-[11px] text-[#c7bfb2] font-mono-num mt-1 flex items-center justify-end gap-2">
               <span>
                 {hud.portalOpen ? (
-                  <span className="text-[#4ade80]">Portal Aberto</span>
+                  <span className="text-[#4ade80] font-semibold">Portal Aberto</span>
                 ) : (
                   <>
                     {hud.waveTotal > 1 ? (
@@ -249,31 +294,43 @@ export function GameHUD({
                   </>
                 )}
               </span>
-              <span aria-hidden="true">·</span>
+              <span className="text-white/25" aria-hidden="true">|</span>
               <span className="inline-flex items-center gap-1 text-[#facc15]">
                 <GoldCoinIcon className="w-3.5 h-3.5" />
                 {hud.gold}
               </span>
-              <span aria-hidden="true">·</span>
               <span className="inline-flex items-center gap-1 text-[#c084fc]">
                 <CrystalIcon className="w-3.5 h-3.5" />
                 {hud.crystalsRun}
               </span>
             </div>
             {hud.floorModifier && (
-              <div className="text-[11px] text-[#fca5a5] mt-0.5">{hud.floorModifier}</div>
+              <div className="text-[11px] text-[#fca5a5] mt-1 font-medium">{hud.floorModifier}</div>
             )}
           </div>
 
-          {/* Real-geometry Corner Minimap */}
-          <div className="hidden sm:block bg-[#0c0a11]/90 border border-[#d4a64a]/35 p-1 shadow-lg">
+          {/* Real-geometry Framed Corner Minimap */}
+          <div className="relative hidden sm:block hud-iron-frame p-1">
+            <CornerNotches />
+            <span className="absolute -top-2 left-1/2 -translate-x-1/2 px-1 bg-[#0e0c13] font-mono-num text-[8px] font-bold text-[#d4a64a] leading-none">
+              N
+            </span>
             <svg width={mmW} height={mmH} viewBox={`0 0 ${hud.minimap.roomWidth} ${hud.minimap.roomHeight}`}>
               <rect
                 x="0"
                 y="0"
                 width={hud.minimap.roomWidth}
                 height={hud.minimap.roomHeight}
-                fill="#15121d"
+                fill="#14111c"
+              />
+              <rect
+                x="24"
+                y="24"
+                width={hud.minimap.roomWidth - 48}
+                height={hud.minimap.roomHeight - 48}
+                fill="none"
+                stroke="#2c2638"
+                strokeWidth="22"
               />
               {hud.minimap.pillars.map((p, i) => (
                 <rect
@@ -282,25 +339,25 @@ export function GameHUD({
                   y={p.y - p.h / 2}
                   width={p.w}
                   height={p.h}
-                  fill="#3b3648"
+                  fill="#433d52"
                 />
               ))}
               {hud.minimap.interactables.map((it, i) => (
-                <circle key={i} cx={it.x} cy={it.y} r="28" fill="#f59e0b" />
+                <circle key={i} cx={it.x} cy={it.y} r="30" fill="#f59e0b" />
               ))}
               {hud.minimap.portal && (
-                <circle cx={hud.minimap.portal.x} cy={hud.minimap.portal.y} r="42" fill="#a855f7" />
+                <circle cx={hud.minimap.portal.x} cy={hud.minimap.portal.y} r="44" fill="#a855f7" />
               )}
               {hud.minimap.enemies.map((e, i) => (
                 <circle
                   key={i}
                   cx={e.x}
                   cy={e.y}
-                  r={e.isBoss ? 48 : e.isElite ? 30 : 20}
+                  r={e.isBoss ? 50 : e.isElite ? 32 : 21}
                   fill={e.isBoss ? '#facc15' : e.isElite ? '#fb923c' : '#ef4444'}
                 />
               ))}
-              <circle cx={hud.minimap.player.x} cy={hud.minimap.player.y} r="32" fill="#38bdf8" />
+              <circle cx={hud.minimap.player.x} cy={hud.minimap.player.y} r="34" fill="#38bdf8" stroke="#f8fafc" strokeWidth="10" />
             </svg>
           </div>
         </div>
@@ -350,7 +407,7 @@ export function GameHUD({
         </div>
       </div>
 
-      {/* BOTTOM-CENTER: Interaction Prompt + Passive Strip + Forged-Iron Skill Bar */}
+      {/* BOTTOM-CENTER: Interaction Prompt + Passive Strip + Forged-Iron Skill Hotbar */}
       <div className="fixed bottom-4 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
         {hud.nearbyPrompt && (
           <button
@@ -360,7 +417,7 @@ export function GameHUD({
               e.currentTarget.blur();
               phaserBridge.getController()?.triggerInteract();
             }}
-            className="pointer-events-auto px-4 py-1.5 bg-[#1a1523]/95 border border-[#d4a64a]/75 text-xs font-semibold text-[#f8e3a8] tracking-wide hover:bg-[#272034] transition-colors cursor-pointer"
+            className="pointer-events-auto relative hud-iron-frame border-[#d4a64a]/80 px-4 py-1.5 text-xs font-semibold text-[#f8e3a8] tracking-wide hover:bg-[#241d31] transition-colors cursor-pointer"
           >
             {hud.nearbyPrompt}
           </button>
@@ -370,25 +427,27 @@ export function GameHUD({
           Object.entries(hud.skills).some(
             ([sid, lv]) => lv > 0 && !hud.activeSlots.some((s) => s.skillId === sid)
           )) && (
-          <div className="flex items-center gap-2 text-[11px] font-mono-num hud-text-shadow">
+          <div className="flex items-center gap-1.5 text-[11px] font-mono-num hud-text-shadow">
             {Object.entries(hud.skills)
               .filter(([sid, lv]) => lv > 0 && !hud.activeSlots.some((s) => s.skillId === sid))
               .slice(0, 6)
               .map(([sid, lv]) => (
-                <span key={sid} className="inline-flex items-center gap-1 text-[#d6cfc2] bg-[#110f17]/85 border border-white/15 px-1.5 py-0.5">
+                <span key={sid} className="inline-flex items-center gap-1 text-[#d6cfc2] bg-[#110f17]/90 border border-[#d4a64a]/25 px-1.5 py-0.5">
                   <SkillIcon skillId={sid as keyof typeof hud.skills} className="w-3.5 h-3.5 text-[#d4a64a]" />
                   <span>Nv.{lv}</span>
                 </span>
               ))}
             {hud.activeSynergies.length > 0 && (
-              <span className="text-[#e9d5ff] bg-[#1d132b]/90 border border-[#c084fc]/45 px-2 py-0.5">
+              <span className="text-[#e9d5ff] bg-[#1d132b]/92 border border-[#c084fc]/55 px-2 py-0.5">
                 {hud.activeSynergies.length} Sinergia{hud.activeSynergies.length > 1 ? 's' : ''}
               </span>
             )}
           </div>
         )}
 
-        <div className="pointer-events-auto flex items-center gap-2 bg-[#110f17]/94 border border-[#d4a64a]/35 px-2.5 py-2 shadow-2xl">
+        <div className="pointer-events-auto relative hud-iron-frame px-3 py-2 flex items-center gap-2">
+          <CornerNotches gold />
+
           {/* Q E R F Active Skills */}
           {hud.activeSlots.map((slot, idx) => {
             const cdRatio =
@@ -408,32 +467,37 @@ export function GameHUD({
                 }}
                 title={slot.skillId ? `${slot.name} (Nv.${slot.level})` : `Espaço ${slot.key} vazio`}
                 aria-label={slot.skillId ? `Usar ${slot.name} (${slot.key})` : `Espaço ${slot.key} vazio`}
-                className={`relative w-12 h-12 sm:w-13 sm:h-13 border flex flex-col items-center justify-center transition-colors ${
+                className={`relative w-12 h-12 sm:w-[54px] sm:h-[54px] border flex flex-col items-center justify-center transition-colors overflow-hidden ${
                   slot.skillId
                     ? ready
-                      ? 'bg-[#1a1724] border-[#d4a64a]/60 hover:border-[#f8e3a8] cursor-pointer'
-                      : 'bg-[#121018] border-white/15 cursor-default'
-                    : 'bg-[#0c0b10] border-white/10 opacity-45 cursor-default'
+                      ? 'bg-[#191623] border-[#d4a64a]/65 hover:border-[#f8e3a8] cursor-pointer'
+                      : 'bg-[#100e16] border-white/15 cursor-default'
+                    : 'bg-[#0b0a0f] border-white/10 opacity-45 cursor-default'
                 }`}
+                style={
+                  ready && slot.skillId
+                    ? { boxShadow: `inset 0 -3px 0 ${slot.color}cc, inset 0 0 12px ${slot.color}1e` }
+                    : undefined
+                }
               >
                 {slot.skillId && (
-                  <span style={{ color: slot.color }}>
+                  <span style={{ color: ready ? slot.color : '#64748b' }}>
                     <SkillIcon skillId={slot.skillId} className="w-5 h-5" />
                   </span>
                 )}
                 {cdRatio > 0 && (
                   <div
-                    className="absolute inset-x-0 bottom-0 bg-black/75 flex items-center justify-center font-mono-num text-[11px] font-bold text-[#f8e3a8]"
+                    className="absolute inset-x-0 bottom-0 bg-[#07060a]/82 border-t border-[#f8e3a8]/35 flex items-center justify-center font-mono-num text-[11px] font-bold text-[#f8e3a8]"
                     style={{ height: `${cdRatio * 100}%` }}
                   >
                     {slot.cooldownRemaining.toFixed(1)}
                   </div>
                 )}
-                <span className="absolute top-0.5 left-1 font-mono-num text-[10px] text-[#b8afa1] font-bold">
+                <span className="absolute top-0.5 left-1 font-mono-num text-[10px] text-[#c7bfb2] font-bold leading-none">
                   {slot.key}
                 </span>
                 {slot.level > 0 && (
-                  <span className="absolute bottom-0.5 right-1 font-mono-num text-[9px] text-[#d4a64a]">
+                  <span className="absolute bottom-1 right-1 font-mono-num text-[9px] font-bold text-[#f8e3a8] leading-none">
                     {slot.level}
                   </span>
                 )}
@@ -441,7 +505,7 @@ export function GameHUD({
             );
           })}
 
-          <div className="w-px h-8 bg-white/15 mx-0.5" />
+          <div className="w-px h-9 bg-[#d4a64a]/25 mx-0.5" />
 
           {/* Space Dash Slot */}
           <button
@@ -452,20 +516,25 @@ export function GameHUD({
               phaserBridge.getController()?.triggerDash();
             }}
             aria-label="Esquiva (Espaço)"
-            className="relative w-12 h-12 sm:w-13 sm:h-13 bg-[#1a1724] border border-[#c084fc]/50 hover:border-[#e9d5ff] flex flex-col items-center justify-center cursor-pointer"
+            className="relative w-12 h-12 sm:w-[54px] sm:h-[54px] bg-[#191623] border border-[#c084fc]/55 hover:border-[#e9d5ff] flex flex-col items-center justify-center cursor-pointer overflow-hidden"
+            style={
+              hud.dashCooldown <= 0.05
+                ? { boxShadow: 'inset 0 -3px 0 rgba(192,132,252,0.8), inset 0 0 12px rgba(192,132,252,0.14)' }
+                : undefined
+            }
           >
             <svg viewBox="0 0 24 24" className="w-5 h-5 text-[#c084fc]" fill="none" stroke="currentColor" strokeWidth="1.9">
               <path d="M4 12h13m-4-5l5 5-5 5M4 7h6M4 17h6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             {hud.dashCooldown > 0.05 && (
               <div
-                className="absolute inset-x-0 bottom-0 bg-black/75 flex items-center justify-center font-mono-num text-[11px] font-bold text-[#e9d5ff]"
+                className="absolute inset-x-0 bottom-0 bg-[#07060a]/82 border-t border-[#e9d5ff]/35 flex items-center justify-center font-mono-num text-[11px] font-bold text-[#e9d5ff]"
                 style={{ height: `${Math.min(100, (hud.dashCooldown / hud.dashCooldownMax) * 100)}%` }}
               >
                 {hud.dashCooldown.toFixed(1)}
               </div>
             )}
-            <span className="absolute top-0.5 left-1 font-mono-num text-[9px] text-[#b8afa1] font-bold">
+            <span className="absolute top-0.5 left-1 font-mono-num text-[9px] text-[#c7bfb2] font-bold leading-none">
               ESP
             </span>
           </button>
@@ -475,6 +544,18 @@ export function GameHUD({
       {/* Optional / Auto-Detected Mobile Touch Virtual Controls */}
       {isTouchEnv && <MobileTouchControls />}
     </div>
+  );
+}
+
+function CornerNotches({ gold = false }: { gold?: boolean }) {
+  const c = gold ? 'border-[#f8e3a8]/80' : 'border-[#d4a64a]/65';
+  return (
+    <>
+      <span className={`pointer-events-none absolute -top-px -left-px w-2 h-2 border-t-2 border-l-2 ${c}`} />
+      <span className={`pointer-events-none absolute -top-px -right-px w-2 h-2 border-t-2 border-r-2 ${c}`} />
+      <span className={`pointer-events-none absolute -bottom-px -left-px w-2 h-2 border-b-2 border-l-2 ${c}`} />
+      <span className={`pointer-events-none absolute -bottom-px -right-px w-2 h-2 border-b-2 border-r-2 ${c}`} />
+    </>
   );
 }
 
@@ -501,12 +582,14 @@ function UtilityBtn({
         e.currentTarget.blur();
         onClick();
       }}
-      className="relative w-9 h-9 bg-[#121018]/92 border border-[#d4a64a]/35 hover:border-[#f8e3a8] text-[#e8e3d9] flex items-center justify-center transition-colors cursor-pointer"
+      className="relative w-9 h-9 bg-[#121018]/94 border border-[#d4a64a]/38 hover:border-[#f8e3a8] hover:bg-[#1e1a29] text-[#e8e3d9] flex items-center justify-center transition-colors cursor-pointer"
     >
       {children}
-      <span className="sr-only">{hotkey}</span>
+      <span className="absolute bottom-0.5 right-0.5 font-mono-num text-[8px] text-[#9c9487] leading-none">
+        {hotkey === 'Esc' ? 'ESC' : hotkey}
+      </span>
       {badge !== undefined && (
-        <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-[#b83232] text-[10px] font-mono-num font-bold text-white flex items-center justify-center">
+        <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 bg-[#b83232] border border-[#f8e3a8]/40 text-[10px] font-mono-num font-bold text-white flex items-center justify-center">
           {badge}
         </span>
       )}

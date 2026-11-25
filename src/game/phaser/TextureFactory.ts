@@ -31,30 +31,36 @@ export function generateAllGameTextures(scene: Phaser.Scene) {
 
 function generateBiomeTiles(scene: Phaser.Scene) {
   for (const b of BIOMES) {
-    // 3 handcrafted flagstone variations per biome to eliminate grid repetition
-    for (let v = 0; v < 3; v++) {
+    // 4 handcrafted organic weathered flagstone variations per biome (eliminates grid/crack repetition)
+    for (let v = 0; v < 4; v++) {
       makeCanvas(scene, `floor_${b.index}_${v}`, 64, 64, (ctx, w, h) => {
+        // Deep subtle mortar bed
         ctx.fillStyle = b.floorSecondary;
         ctx.fillRect(0, 0, w, h);
 
         const layouts = [
           [
-            [2, 2, 28, 28],
-            [34, 2, 28, 28],
-            [2, 34, 38, 28],
-            [44, 34, 18, 28],
+            [1, 1, 30, 30],
+            [33, 1, 30, 30],
+            [1, 33, 40, 30],
+            [43, 33, 20, 30],
           ],
           [
-            [2, 2, 40, 26],
-            [46, 2, 16, 26],
-            [2, 32, 24, 30],
-            [30, 32, 32, 30],
+            [1, 1, 42, 27],
+            [45, 1, 18, 27],
+            [1, 30, 26, 33],
+            [29, 30, 34, 33],
           ],
           [
-            [2, 2, 24, 36],
-            [30, 2, 32, 20],
-            [30, 26, 32, 36],
-            [2, 42, 24, 20],
+            [1, 1, 25, 37],
+            [28, 1, 35, 22],
+            [28, 25, 35, 38],
+            [1, 40, 25, 23],
+          ],
+          [
+            [1, 1, 62, 30],
+            [1, 33, 30, 30],
+            [33, 33, 30, 30],
           ],
         ];
         const stones = layouts[v];
@@ -62,73 +68,199 @@ function generateBiomeTiles(scene: Phaser.Scene) {
           const [x, y, sw, sh] = stones[si];
           ctx.fillStyle = b.floorPrimary;
           ctx.fillRect(x, y, sw, sh);
-          // Subtle tonal variation per slab
-          if ((si + v) % 2 === 0) {
-            ctx.fillStyle = 'rgba(0,0,0,0.12)';
-            ctx.fillRect(x, y, sw, sh);
+
+          // Soft directional stone shading gradient (top-left lit, bottom-right shaded)
+          const sg = ctx.createLinearGradient(x, y, x + sw, y + sh);
+          if ((si + v) % 3 === 0) {
+            sg.addColorStop(0, 'rgba(255,255,255,0.032)');
+            sg.addColorStop(1, 'rgba(0,0,0,0.16)');
+          } else if ((si + v) % 3 === 1) {
+            sg.addColorStop(0, 'rgba(0,0,0,0.06)');
+            sg.addColorStop(1, 'rgba(0,0,0,0.2)');
+          } else {
+            sg.addColorStop(0, 'rgba(255,255,255,0.018)');
+            sg.addColorStop(1, 'rgba(0,0,0,0.11)');
           }
-          ctx.fillStyle = 'rgba(255,255,255,0.035)';
-          ctx.fillRect(x, y, sw, 2);
-          ctx.fillRect(x, y, 2, sh);
-          ctx.fillStyle = 'rgba(0,0,0,0.24)';
-          ctx.fillRect(x, y + sh - 2, sw, 2);
-          ctx.fillRect(x + sw - 2, y, 2, sh);
+          ctx.fillStyle = sg;
+          ctx.fillRect(x, y, sw, sh);
+
+          // Subtle worn bevel edges
+          ctx.fillStyle = 'rgba(255,255,255,0.038)';
+          ctx.fillRect(x, y, sw, 1.5);
+          ctx.fillRect(x, y, 1.5, sh);
+          ctx.fillStyle = 'rgba(0,0,0,0.22)';
+          ctx.fillRect(x, y + sh - 1.5, sw, 1.5);
+          ctx.fillRect(x + sw - 1.5, y, 1.5, sh);
         }
 
-        // Organic cracks & pebbles
-        ctx.strokeStyle = b.floorCrack;
-        ctx.lineWidth = 1.4;
-        ctx.beginPath();
-        if (v === 0) {
-          ctx.moveTo(10, 12);
-          ctx.lineTo(18, 17);
-          ctx.lineTo(24, 14);
-        } else if (v === 1) {
-          ctx.moveTo(36, 40);
-          ctx.lineTo(48, 49);
-          ctx.lineTo(54, 46);
-        } else {
-          ctx.moveTo(8, 48);
-          ctx.lineTo(16, 54);
-          ctx.moveTo(42, 10);
-          ctx.lineTo(52, 18);
+        // Subtle deterministic stone grain / mineral speckles
+        for (let p = 0; p < 10; p++) {
+          const px = ((p * 23 + v * 17 + b.index * 7) % 58) + 3;
+          const py = ((p * 37 + v * 11 + b.index * 13) % 58) + 3;
+          ctx.fillStyle = p % 2 === 0 ? 'rgba(0,0,0,0.16)' : 'rgba(255,255,255,0.03)';
+          ctx.fillRect(px, py, 2, 2);
         }
-        ctx.stroke();
 
-        // Biome-specific ground detail (moss/ember/frost/runes)
+        // Hairline organic fractures only on variants 1 and 3 (breaks monotony)
+        if (v === 1 || v === 3) {
+          ctx.strokeStyle = b.floorCrack;
+          ctx.globalAlpha = 0.55;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          if (v === 1) {
+            ctx.moveTo(38, 36);
+            ctx.lineTo(44, 42);
+            ctx.lineTo(50, 40);
+            ctx.moveTo(44, 42);
+            ctx.lineTo(46, 48);
+          } else {
+            ctx.moveTo(12, 14);
+            ctx.lineTo(19, 19);
+            ctx.lineTo(25, 17);
+          }
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+        }
+
+        // Atmospheric biome crevice detail (moss/ember/frost/runic dust) on variant 2
         if (v === 2) {
           ctx.fillStyle = b.accentGlow;
-          ctx.globalAlpha = b.index === 0 ? 0.14 : 0.24;
-          ctx.fillRect(14, 16, 4, 3);
-          ctx.fillRect(46, 46, 3, 4);
+          ctx.globalAlpha = b.index === 0 ? 0.12 : 0.19;
+          ctx.fillRect(26, 23, 3, 5);
+          ctx.fillRect(27, 25, 4, 2);
+          ctx.fillRect(10, 38, 5, 2);
           ctx.globalAlpha = 1;
         }
       });
     }
 
-    // Wall / pillar block (64x64)
+    // Perimeter Wall Masonry Block (64x64) — sculpted ashlar brickwork with top parapet & deep front plinth
     makeCanvas(scene, `wall_${b.index}`, 64, 64, (ctx, w, h) => {
-      ctx.fillStyle = '#0c0b10';
+      ctx.fillStyle = '#09080c';
       ctx.fillRect(0, 0, w, h);
 
-      // Top cap of stone block
-      ctx.fillStyle = b.wallPrimary;
-      ctx.fillRect(2, 2, w - 4, h - 14);
-      // Front face (depth illusion)
-      ctx.fillStyle = b.floorSecondary;
-      ctx.fillRect(2, h - 12, w - 4, 10);
+      // Top stone parapet surface (44px)
+      const topG = ctx.createLinearGradient(0, 0, 0, 46);
+      topG.addColorStop(0, b.wallHighlight);
+      topG.addColorStop(0.22, b.wallPrimary);
+      topG.addColorStop(1, b.floorSecondary);
+      ctx.fillStyle = topG;
+      ctx.fillRect(1, 1, w - 2, 45);
 
-      // Carved stone bevel & trim
-      ctx.strokeStyle = b.wallHighlight;
+      // Offset ashlar brick courses on parapet
+      ctx.strokeStyle = 'rgba(8, 7, 12, 0.72)';
       ctx.lineWidth = 2;
-      ctx.strokeRect(4, 4, w - 8, h - 18);
+      ctx.beginPath();
+      ctx.moveTo(1, 16);
+      ctx.lineTo(w - 1, 16);
+      ctx.moveTo(1, 31);
+      ctx.lineTo(w - 1, 31);
+      ctx.moveTo(32, 1);
+      ctx.lineTo(32, 16);
+      ctx.moveTo(16, 16);
+      ctx.lineTo(16, 31);
+      ctx.moveTo(48, 16);
+      ctx.lineTo(48, 31);
+      ctx.moveTo(32, 31);
+      ctx.lineTo(32, 46);
+      ctx.stroke();
 
-      // Carved inner rune notch
-      ctx.strokeStyle = b.accentGlow;
-      ctx.globalAlpha = 0.32;
+      // Subtle bevel highlights along brick upper edges
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.fillRect(2, 2, w - 4, 2);
+      ctx.fillRect(2, 17, w - 4, 1.5);
+      ctx.fillRect(2, 32, w - 4, 1.5);
+
+      // Front vertical wall drop face (gives clean 2.5D top-down depth)
+      const frontG = ctx.createLinearGradient(0, 46, 0, h);
+      frontG.addColorStop(0, b.wallPrimary);
+      frontG.addColorStop(0.28, b.floorSecondary);
+      frontG.addColorStop(1, '#08070b');
+      ctx.fillStyle = frontG;
+      ctx.fillRect(1, 46, w - 2, 17);
+
+      // Vertical stone joint on front face + top rim cornice shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(1, 45, w - 2, 2);
+      ctx.fillRect(22, 47, 2, 15);
+      ctx.fillRect(46, 47, 2, 15);
+      ctx.fillStyle = 'rgba(255,255,255,0.06)';
+      ctx.fillRect(2, 47, w - 4, 1.5);
+    });
+
+    // Dedicated Arena Gothic Pillar (64x64) — carved stepped stone column with iron clasps & subtle biome sigil
+    makeCanvas(scene, `pillar_${b.index}`, 64, 64, (ctx, w, h) => {
+      // Soft cast ground shadow beneath column
+      const sh = ctx.createRadialGradient(32, 38, 10, 32, 38, 31);
+      sh.addColorStop(0, 'rgba(0,0,0,0.62)');
+      sh.addColorStop(0.75, 'rgba(0,0,0,0.34)');
+      sh.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = sh;
+      ctx.fillRect(0, 0, w, h);
+
+      // Stepped lower stone plinth
+      ctx.fillStyle = b.floorSecondary;
+      ctx.strokeStyle = '#09080c';
+      ctx.lineWidth = 2;
+      ctx.fillRect(4, 10, 56, 50);
+      ctx.strokeRect(4, 10, 56, 50);
+
+      // Front face of column shaft
+      const shaftG = ctx.createLinearGradient(8, 38, 8, 58);
+      shaftG.addColorStop(0, b.wallPrimary);
+      shaftG.addColorStop(1, '#0c0a12');
+      ctx.fillStyle = shaftG;
+      ctx.fillRect(7, 42, 50, 16);
+
+      // Carved top capital slab
+      const capG = ctx.createLinearGradient(8, 5, 56, 46);
+      capG.addColorStop(0, b.wallHighlight);
+      capG.addColorStop(0.45, b.wallPrimary);
+      capG.addColorStop(1, b.floorSecondary);
+      ctx.fillStyle = capG;
+      ctx.fillRect(7, 5, 50, 40);
+      ctx.strokeStyle = '#0b0a0e';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(7, 5, 50, 40);
+
+      // Recessed inner stone frame on top cap
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
       ctx.lineWidth = 1.5;
-      ctx.strokeRect(16, 14, w - 32, h - 38);
-      ctx.globalAlpha = 1;
+      ctx.strokeRect(12, 10, 40, 30);
+
+      // Corner wrought-iron clasps
+      ctx.fillStyle = '#27272a';
+      ctx.strokeStyle = '#09080c';
+      ctx.lineWidth = 1;
+      for (const [rx, ry] of [
+        [7, 5],
+        [49, 5],
+        [7, 37],
+        [49, 37],
+      ]) {
+        ctx.fillRect(rx, ry, 8, 8);
+        ctx.strokeRect(rx, ry, 8, 8);
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillRect(rx + 2, ry + 2, 2, 2);
+        ctx.fillStyle = '#27272a';
+      }
+
+      // Subtle engraved biome rune diamond in crown center
+      ctx.save();
+      ctx.strokeStyle = b.accentGlow;
+      ctx.globalAlpha = 0.55;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(32, 15);
+      ctx.lineTo(41, 25);
+      ctx.lineTo(32, 35);
+      ctx.lineTo(23, 25);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.fillStyle = b.accentGlow;
+      ctx.globalAlpha = 0.25;
+      ctx.fill();
+      ctx.restore();
     });
   }
 }
@@ -729,62 +861,155 @@ function generateEnemySprites(scene: Phaser.Scene) {
           break;
         }
         case 'skeleton': {
-          // Undead vanguard: tattered iron armor, visible ribcage, iron shield & broadsword
-          ctx.fillStyle = '#272c38';
+          // Dark-fantasy undead vanguard: tattered grave mantle, weathered aged-bone skull, cracked iron half-helm, rimmed shield & crossguard blade
+          // Tattered dark-crimson grave cape behind torso
+          ctx.fillStyle = '#3b151e';
           ctx.beginPath();
-          ctx.roundRect(cx - 17, cy - 7, 34, 24, 6);
+          ctx.moveTo(cx - 17, cy - 10);
+          ctx.lineTo(cx - 21, cy + 20);
+          ctx.lineTo(cx - 8, cy + 16);
+          ctx.lineTo(cx, cy + 23);
+          ctx.lineTo(cx + 9, cy + 17);
+          ctx.lineTo(cx + 20, cy + 20);
+          ctx.lineTo(cx + 16, cy - 10);
+          ctx.closePath();
           ctx.fill();
           ctx.stroke();
-          // Exposed ivory ribs
-          ctx.strokeStyle = '#e2e8f0';
-          ctx.lineWidth = 2.4;
+
+          // Dark forged breastplate / ribcage housing
+          ctx.fillStyle = '#1f2430';
+          ctx.beginPath();
+          ctx.roundRect(cx - 16, cy - 7, 32, 23, 5);
+          ctx.fill();
+          ctx.stroke();
+
+          // Weathered curved aged-bone ribs + spine
+          ctx.strokeStyle = '#c4bba6';
+          ctx.lineWidth = 2.3;
           for (let r = 0; r < 3; r++) {
+            const ry = cy - 1 + r * 5;
             ctx.beginPath();
-            ctx.moveTo(cx - 9, cy - 1 + r * 5);
-            ctx.lineTo(cx + 9, cy - 1 + r * 5);
+            ctx.moveTo(cx - 9, ry);
+            ctx.quadraticCurveTo(cx, ry + 2.2, cx + 9, ry);
             ctx.stroke();
           }
-          // Iron pauldrons
+          ctx.fillStyle = '#9e9582';
+          ctx.fillRect(cx - 1.5, cy - 3, 3, 15);
+
+          // Tarnished rusted iron pauldrons with bronze trim
           ctx.strokeStyle = '#09080c';
           ctx.lineWidth = 2.6;
-          ctx.fillStyle = '#475569';
+          ctx.fillStyle = '#434b5c';
           ctx.beginPath();
-          ctx.ellipse(cx - 17, cy - 4, 8, 9, 0, 0, Math.PI * 2);
-          ctx.ellipse(cx + 17, cy - 4, 8, 9, 0, 0, Math.PI * 2);
+          ctx.ellipse(cx - 17, cy - 4, 8.5, 9, -0.2, 0, Math.PI * 2);
+          ctx.ellipse(cx + 17, cy - 4, 8.5, 9, 0.2, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
-          // Skull cranium + jaw
-          ctx.fillStyle = '#e2e8f0';
+          ctx.strokeStyle = '#927248';
+          ctx.lineWidth = 1.4;
           ctx.beginPath();
-          ctx.arc(cx, cy - 13, 12, 0, Math.PI * 2);
+          ctx.arc(cx - 17, cy - 4, 5.5, -1.8, 0.4);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(cx + 17, cy - 4, 5.5, 2.7, 4.9);
+          ctx.stroke();
+
+          // Sculpted weathered skull (aged ivory gradient + angular jaw)
+          ctx.strokeStyle = '#09080c';
+          ctx.lineWidth = 2.6;
+          const skullGrad = ctx.createRadialGradient(cx - 2, cy - 17, 2, cx, cy - 13, 13);
+          skullGrad.addColorStop(0, '#ddd6c5');
+          skullGrad.addColorStop(0.7, '#b8ae99');
+          skullGrad.addColorStop(1, '#857d6c');
+          ctx.fillStyle = skullGrad;
+          ctx.beginPath();
+          ctx.moveTo(cx - 10, cy - 11);
+          ctx.quadraticCurveTo(cx - 12, cy - 24, cx, cy - 24);
+          ctx.quadraticCurveTo(cx + 12, cy - 24, cx + 10, cy - 11);
+          ctx.lineTo(cx + 6, cy - 3);
+          ctx.lineTo(cx - 6, cy - 3);
+          ctx.closePath();
           ctx.fill();
           ctx.stroke();
-          ctx.fillStyle = '#0f172a';
-          ctx.fillRect(cx - 7, cy - 15, 5, 4);
-          ctx.fillRect(cx + 2, cy - 15, 5, 4);
-          drawGlowingEyes(ctx, cx - 6, cy - 14, cx + 3, cy - 14, 3, 2, '#f87171');
-          // Heavy riveted heater shield (left)
-          ctx.fillStyle = '#64748b';
+
+          // Cracked iron skullcap & brow band
+          ctx.fillStyle = '#333b4a';
           ctx.beginPath();
-          ctx.moveTo(cx - 29, cy - 10);
+          ctx.arc(cx, cy - 16, 11.2, Math.PI * 1.05, Math.PI * 1.95);
+          ctx.lineTo(cx + 10, cy - 16);
+          ctx.lineTo(cx - 10, cy - 16);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+          // Nasal ridge
+          ctx.fillStyle = '#4b5568';
+          ctx.fillRect(cx - 1.4, cy - 20, 2.8, 7);
+
+          // Hollow dark sockets + sinister crimson ember pinpoints
+          ctx.fillStyle = '#09090d';
+          ctx.beginPath();
+          ctx.ellipse(cx - 4.6, cy - 12.5, 3.2, 2.6, -0.15, 0, Math.PI * 2);
+          ctx.ellipse(cx + 4.6, cy - 12.5, 3.2, 2.6, 0.15, 0, Math.PI * 2);
+          ctx.fill();
+          drawGlowingEyes(ctx, cx - 5.5, cy - 13.5, cx + 3.5, cy - 13.5, 2.2, 2.2, '#ef4444');
+          // Subtle jaw teeth notch
+          ctx.fillStyle = '#292524';
+          ctx.fillRect(cx - 3.5, cy - 6.5, 1.5, 2.5);
+          ctx.fillRect(cx - 0.8, cy - 6.5, 1.5, 2.5);
+          ctx.fillRect(cx + 2, cy - 6.5, 1.5, 2.5);
+
+          // Battle-scarred bronze-rimmed heater shield (left)
+          ctx.fillStyle = '#333d4f';
+          ctx.beginPath();
+          ctx.moveTo(cx - 30, cy - 10);
           ctx.lineTo(cx - 14, cy - 10);
           ctx.lineTo(cx - 14, cy + 8);
-          ctx.lineTo(cx - 21.5, cy + 16);
-          ctx.lineTo(cx - 29, cy + 8);
+          ctx.lineTo(cx - 22, cy + 17);
+          ctx.lineTo(cx - 30, cy + 8);
           ctx.closePath();
           ctx.fill();
           ctx.stroke();
-          // Notched broadsword (right)
-          ctx.fillStyle = '#cbd5e1';
+          // Bronze rim & iron boss
+          ctx.strokeStyle = '#927248';
+          ctx.lineWidth = 1.6;
           ctx.beginPath();
-          ctx.moveTo(cx + 22, cy - 28);
-          ctx.lineTo(cx + 26, cy - 20);
-          ctx.lineTo(cx + 25, cy + 8);
-          ctx.lineTo(cx + 19, cy + 8);
-          ctx.lineTo(cx + 18, cy - 20);
+          ctx.moveTo(cx - 27.5, cy - 7.5);
+          ctx.lineTo(cx - 16.5, cy - 7.5);
+          ctx.lineTo(cx - 16.5, cy + 6.5);
+          ctx.lineTo(cx - 22, cy + 13.5);
+          ctx.lineTo(cx - 27.5, cy + 6.5);
+          ctx.closePath();
+          ctx.stroke();
+          ctx.fillStyle = '#94a3b8';
+          ctx.beginPath();
+          ctx.arc(cx - 22, cy + 1, 2.8, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Chipped broadsword with bronze crossguard & fuller (right)
+          ctx.strokeStyle = '#09080c';
+          ctx.lineWidth = 2.4;
+          const bladeGrad = ctx.createLinearGradient(cx + 18, cy - 28, cx + 26, cy + 6);
+          bladeGrad.addColorStop(0, '#e2e8f0');
+          bladeGrad.addColorStop(0.55, '#94a3b8');
+          bladeGrad.addColorStop(1, '#475569');
+          ctx.fillStyle = bladeGrad;
+          ctx.beginPath();
+          ctx.moveTo(cx + 22, cy - 29);
+          ctx.lineTo(cx + 26, cy - 21);
+          ctx.lineTo(cx + 24.5, cy - 11);
+          ctx.lineTo(cx + 26, cy - 8);
+          ctx.lineTo(cx + 25, cy + 7);
+          ctx.lineTo(cx + 19, cy + 7);
+          ctx.lineTo(cx + 18.5, cy - 21);
           ctx.closePath();
           ctx.fill();
           ctx.stroke();
+          // Crossguard & pommel
+          ctx.fillStyle = '#a16207';
+          ctx.fillRect(cx + 15.5, cy + 6, 13, 3.6);
+          ctx.strokeRect(cx + 15.5, cy + 6, 13, 3.6);
+          ctx.fillStyle = '#451a03';
+          ctx.fillRect(cx + 20.5, cy + 9.6, 3, 5.5);
           break;
         }
         case 'archer': {
@@ -1707,215 +1932,665 @@ function generateProjectilesAndEffects(scene: Phaser.Scene) {
     ctx.fillRect(0, 0, 128, 128);
   });
 
-  // Crisp particle spark
-  makeCanvas(scene, 'fx_spark', 10, 10, (ctx) => {
-    ctx.fillStyle = '#ffffff';
+  // Crisp particle spark (soft hot core)
+  makeCanvas(scene, 'fx_spark', 12, 12, (ctx) => {
+    const g = ctx.createRadialGradient(6, 6, 1, 6, 6, 6);
+    g.addColorStop(0, '#ffffff');
+    g.addColorStop(0.55, 'rgba(255,255,255,0.85)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.arc(5, 5, 4, 0, Math.PI * 2);
+    ctx.arc(6, 6, 6, 0, Math.PI * 2);
     ctx.fill();
   });
 
-  // Heavy layered melee cleave slash arc
-  makeCanvas(scene, 'fx_slash', 120, 120, (ctx) => {
-    ctx.strokeStyle = 'rgba(249, 115, 22, 0.55)';
-    ctx.lineWidth = 18;
-    ctx.lineCap = 'round';
+  // Directional kinetic hit spark streak (rotated along impact angle)
+  makeCanvas(scene, 'fx_spark_streak', 22, 6, (ctx) => {
+    const g = ctx.createLinearGradient(0, 3, 22, 3);
+    g.addColorStop(0, 'rgba(255,255,255,0)');
+    g.addColorStop(0.45, 'rgba(255,255,255,0.85)');
+    g.addColorStop(1, '#ffffff');
+    ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.arc(40, 60, 50, -Math.PI * 0.46, Math.PI * 0.46);
+    ctx.moveTo(0, 3);
+    ctx.lineTo(15, 0.8);
+    ctx.lineTo(22, 3);
+    ctx.lineTo(15, 5.2);
+    ctx.closePath();
+    ctx.fill();
+  });
+
+  // 4-point dark-fantasy critical hit flare star
+  makeCanvas(scene, 'fx_crit_star', 56, 56, (ctx) => {
+    const cx = 28;
+    const cy = 28;
+    const g = ctx.createRadialGradient(cx, cy, 2, cx, cy, 24);
+    g.addColorStop(0, 'rgba(255,255,255,0.95)');
+    g.addColorStop(0.35, 'rgba(250,204,21,0.55)');
+    g.addColorStop(1, 'rgba(250,204,21,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 24, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#fef9c3';
+    ctx.beginPath();
+    ctx.moveTo(cx, 2);
+    ctx.lineTo(cx + 4.5, cy - 4.5);
+    ctx.lineTo(54, cy);
+    ctx.lineTo(cx + 4.5, cy + 4.5);
+    ctx.lineTo(cx, 54);
+    ctx.lineTo(cx - 4.5, cy + 4.5);
+    ctx.lineTo(2, cy);
+    ctx.lineTo(cx - 4.5, cy - 4.5);
+    ctx.closePath();
+    ctx.fill();
+  });
+
+  // Ground scorch / battle scar decal (fades cleanly after kills & explosions)
+  makeCanvas(scene, 'fx_scorch', 56, 56, (ctx) => {
+    const g = ctx.createRadialGradient(28, 28, 3, 28, 28, 26);
+    g.addColorStop(0, 'rgba(12, 8, 12, 0.72)');
+    g.addColorStop(0.5, 'rgba(30, 14, 18, 0.42)');
+    g.addColorStop(1, 'rgba(12, 8, 12, 0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(28, 28, 25, 19, 0.25, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.beginPath();
+    ctx.arc(14, 22, 3, 0, Math.PI * 2);
+    ctx.arc(41, 33, 2.5, 0, Math.PI * 2);
+    ctx.arc(34, 15, 2, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // Razor-sharp tapered crescent melee cleave arc (Hades / Dead Cells blade sweep)
+  makeCanvas(scene, 'fx_slash', 144, 144, (ctx) => {
+    const cx = 42;
+    const cy = 72;
+
+    // Outer fiery-steel motion aura (tapered crescent path)
+    const auraG = ctx.createRadialGradient(cx + 30, cy, 18, cx + 30, cy, 68);
+    auraG.addColorStop(0, 'rgba(249, 115, 22, 0)');
+    auraG.addColorStop(0.65, 'rgba(249, 115, 22, 0.48)');
+    auraG.addColorStop(0.92, 'rgba(253, 186, 116, 0.65)');
+    auraG.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = auraG;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 64, -Math.PI * 0.45, Math.PI * 0.45, false);
+    ctx.arc(cx - 10, cy, 52, Math.PI * 0.42, -Math.PI * 0.42, true);
+    ctx.closePath();
+    ctx.fill();
+
+    // Main razor-tapered white-hot steel crescent
+    const bladeG = ctx.createLinearGradient(cx + 10, cy - 60, cx + 62, cy);
+    bladeG.addColorStop(0, 'rgba(254, 240, 138, 0.15)');
+    bladeG.addColorStop(0.5, 'rgba(248, 250, 252, 0.98)');
+    bladeG.addColorStop(1, '#ffffff');
+    ctx.fillStyle = bladeG;
+    ctx.beginPath();
+    ctx.arc(cx + 4, cy, 60, -Math.PI * 0.43, Math.PI * 0.43, false);
+    ctx.arc(cx - 5, cy, 55, Math.PI * 0.41, -Math.PI * 0.41, true);
+    ctx.closePath();
+    ctx.fill();
+
+    // Crisp leading cutting-edge glint
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.arc(cx + 5, cy, 60, -Math.PI * 0.34, Math.PI * 0.34);
     ctx.stroke();
-    ctx.strokeStyle = 'rgba(248, 250, 252, 0.96)';
-    ctx.lineWidth = 9;
+
+    // Trailing kinetic speed lines inside the arc
+    ctx.strokeStyle = 'rgba(254, 215, 170, 0.68)';
+    ctx.lineWidth = 1.6;
     ctx.beginPath();
-    ctx.arc(44, 60, 48, -Math.PI * 0.42, Math.PI * 0.42);
+    ctx.arc(cx - 2, cy, 46, -Math.PI * 0.28, Math.PI * 0.16);
     ctx.stroke();
-    ctx.strokeStyle = 'rgba(254, 240, 138, 0.85)';
-    ctx.lineWidth = 3.5;
+    ctx.strokeStyle = 'rgba(248, 250, 252, 0.45)';
+    ctx.lineWidth = 1.3;
     ctx.beginPath();
-    ctx.arc(49, 60, 42, -Math.PI * 0.35, Math.PI * 0.35);
+    ctx.arc(cx - 8, cy, 38, -Math.PI * 0.14, Math.PI * 0.28);
     ctx.stroke();
   });
 }
 
 function generatePropsAndPickups(scene: Phaser.Scene) {
-  // Iron Brazier
-  makeCanvas(scene, 'prop_brazier', 32, 32, (ctx) => {
-    ctx.fillStyle = '#27272a';
-    ctx.strokeStyle = '#09090b';
+  // Cast-iron dungeon brazier (64x64 supersampled, rendered at 0.62 scale)
+  makeCanvas(scene, 'prop_brazier', 64, 64, (ctx) => {
+    const cx = 32;
+    const cy = 34;
+    drawGroundShadow(ctx, cx, cy + 12, 22, 12, 0.58);
+
+    // 4 wrought-iron tripod/claw legs
+    ctx.strokeStyle = '#18181b';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    for (const ang of [-2.4, -0.75, 0.75, 2.4]) {
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(ang) * 10, cy + Math.sin(ang) * 8);
+      ctx.lineTo(cx + Math.cos(ang) * 20, cy + Math.sin(ang) * 15 + 4);
+      ctx.stroke();
+    }
+
+    // Iron cauldron bowl
+    const bowlG = ctx.createRadialGradient(cx - 4, cy - 4, 2, cx, cy, 18);
+    bowlG.addColorStop(0, '#52525b');
+    bowlG.addColorStop(0.65, '#27272a');
+    bowlG.addColorStop(1, '#09090b');
+    ctx.fillStyle = bowlG;
+    ctx.strokeStyle = '#09080c';
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 17, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Riveted brass rim
+    ctx.strokeStyle = '#71717a';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(16, 16, 11, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.arc(cx, cy, 14, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.fillStyle = '#f97316';
+
+    // Glowing coal bed
+    const coalG = ctx.createRadialGradient(cx, cy, 2, cx, cy, 12);
+    coalG.addColorStop(0, '#f97316');
+    coalG.addColorStop(0.7, '#991b1b');
+    coalG.addColorStop(1, '#270909');
+    ctx.fillStyle = coalG;
     ctx.beginPath();
-    ctx.arc(16, 16, 6, 0, Math.PI * 2);
+    ctx.arc(cx, cy, 12, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = '#fef08a';
+
+    // Layered sculpted flames
+    ctx.fillStyle = '#ea580c';
     ctx.beginPath();
-    ctx.arc(16, 16, 3, 0, Math.PI * 2);
+    ctx.moveTo(cx - 9, cy + 3);
+    ctx.quadraticCurveTo(cx - 11, cy - 10, cx - 2, cy - 17);
+    ctx.quadraticCurveTo(cx + 3, cy - 10, cx + 8, cy - 15);
+    ctx.quadraticCurveTo(cx + 12, cy - 5, cx + 9, cy + 4);
+    ctx.quadraticCurveTo(cx, cy + 8, cx - 9, cy + 3);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#facc15';
+    ctx.beginPath();
+    ctx.moveTo(cx - 5, cy + 2);
+    ctx.quadraticCurveTo(cx - 4, cy - 9, cx, cy - 13);
+    ctx.quadraticCurveTo(cx + 5, cy - 7, cx + 5, cy + 2);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#fefce8';
+    ctx.beginPath();
+    ctx.arc(cx, cy - 2, 3.2, 0, Math.PI * 2);
     ctx.fill();
   });
 
-  // Dungeon Portal
-  makeCanvas(scene, 'prop_portal', 76, 76, (ctx) => {
-    const g = ctx.createRadialGradient(38, 38, 6, 38, 38, 36);
-    g.addColorStop(0, '#faf5ff');
-    g.addColorStop(0.35, '#a855f7');
-    g.addColorStop(0.75, '#4c1d95');
-    g.addColorStop(1, 'rgba(76,29,149,0)');
-    ctx.fillStyle = g;
+  // Ornate Runic Stone Dungeon Portal (112x112 supersampled, rendered at 0.72 scale)
+  makeCanvas(scene, 'prop_portal', 112, 112, (ctx) => {
+    const cx = 56;
+    const cy = 56;
+
+    // Outer arcane glow
+    const halo = ctx.createRadialGradient(cx, cy, 12, cx, cy, 54);
+    halo.addColorStop(0, 'rgba(250,245,255,0.95)');
+    halo.addColorStop(0.32, 'rgba(168,85,247,0.85)');
+    halo.addColorStop(0.68, 'rgba(76,29,149,0.52)');
+    halo.addColorStop(1, 'rgba(76,29,149,0)');
+    ctx.fillStyle = halo;
     ctx.beginPath();
-    ctx.arc(38, 38, 36, 0, Math.PI * 2);
+    ctx.arc(cx, cy, 54, 0, Math.PI * 2);
     ctx.fill();
 
+    // Carved dark stone outer ring
+    ctx.strokeStyle = '#1e1b2e';
+    ctx.lineWidth = 9;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 40, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Gilded rune bezel
     ctx.strokeStyle = '#d4a64a';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 2.6;
     ctx.beginPath();
-    ctx.arc(38, 38, 28, 0, Math.PI * 2);
+    ctx.arc(cx, cy, 44, 0, Math.PI * 2);
     ctx.stroke();
+    ctx.strokeStyle = '#f8e3a8';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 36, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 8 carved rune nodes around the ring
+    for (let i = 0; i < 8; i++) {
+      const a = (Math.PI * 2 * i) / 8;
+      const rx = cx + Math.cos(a) * 40;
+      const ry = cy + Math.sin(a) * 40;
+      ctx.fillStyle = i % 2 === 0 ? '#f8e3a8' : '#e879f9';
+      ctx.beginPath();
+      ctx.arc(rx, ry, 2.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Swirling vortex spiral arms
+    for (let arm = 0; arm < 3; arm++) {
+      const baseA = (Math.PI * 2 * arm) / 3;
+      ctx.strokeStyle = arm === 0 ? 'rgba(250,245,255,0.85)' : 'rgba(216,180,254,0.65)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      for (let t = 0; t <= 1; t += 0.08) {
+        const a = baseA + t * 2.4;
+        const r = 6 + t * 28;
+        const x = cx + Math.cos(a) * r;
+        const y = cy + Math.sin(a) * r;
+        if (t === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+
+    // Luminous rift core
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+    ctx.fill();
   });
 
-  // Treasure Chest
-  makeCanvas(scene, 'prop_chest', 40, 34, (ctx) => {
-    ctx.fillStyle = 'rgba(0,0,0,0.45)';
-    ctx.fillRect(4, 24, 32, 8);
+  // Iron-bound Dark Oak Treasure Chest (76x64 supersampled, rendered at 0.62 scale)
+  makeCanvas(scene, 'prop_chest', 76, 64, (ctx) => {
+    drawGroundShadow(ctx, 38, 49, 30, 12, 0.58);
+
+    // Lower oak chest body
+    const baseG = ctx.createLinearGradient(12, 28, 12, 52);
+    baseG.addColorStop(0, '#78350f');
+    baseG.addColorStop(1, '#3b1606');
+    ctx.fillStyle = baseG;
+    ctx.strokeStyle = '#09080c';
+    ctx.lineWidth = 2.6;
+    ctx.fillRect(10, 27, 56, 25);
+    ctx.strokeRect(10, 27, 56, 25);
+
+    // Arched vaulted oak lid
+    const lidG = ctx.createLinearGradient(10, 10, 10, 29);
+    lidG.addColorStop(0, '#b45309');
+    lidG.addColorStop(0.45, '#92400e');
+    lidG.addColorStop(1, '#451a03');
+    ctx.fillStyle = lidG;
+    ctx.beginPath();
+    ctx.moveTo(10, 27);
+    ctx.lineTo(13, 14);
+    ctx.quadraticCurveTo(38, 8, 63, 14);
+    ctx.lineTo(66, 27);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Subtle glowing gold treasure seam under lid
+    ctx.fillStyle = '#fef08a';
+    ctx.fillRect(13, 26, 50, 2.5);
+
+    // Heavy wrought-iron reinforcing bands with rivets
+    ctx.fillStyle = '#3f3f46';
+    ctx.strokeStyle = '#09080c';
+    ctx.lineWidth = 1.6;
+    for (const bx of [15, 53]) {
+      ctx.fillRect(bx, 13, 8, 39);
+      ctx.strokeRect(bx, 13, 8, 39);
+      ctx.fillStyle = '#a1a1aa';
+      ctx.fillRect(bx + 3, 17, 2, 2);
+      ctx.fillRect(bx + 3, 33, 2, 2);
+      ctx.fillRect(bx + 3, 45, 2, 2);
+      ctx.fillStyle = '#3f3f46';
+    }
+
+    // Ornate gilded lock escutcheon
+    ctx.fillStyle = '#eab308';
+    ctx.strokeStyle = '#09080c';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(31, 21);
+    ctx.lineTo(45, 21);
+    ctx.lineTo(45, 34);
+    ctx.lineTo(38, 39);
+    ctx.lineTo(31, 34);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Keyhole & highlight
+    ctx.fillStyle = '#09080c';
+    ctx.beginPath();
+    ctx.arc(38, 28, 2.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillRect(37, 29, 2, 5);
+    ctx.fillStyle = '#fef9c3';
+    ctx.fillRect(33, 23, 10, 2);
+  });
+
+  // Carved Obsidian Blood Altar (84x84 supersampled, rendered at 0.62 scale)
+  makeCanvas(scene, 'prop_altar', 84, 84, (ctx) => {
+    const cx = 42;
+    const cy = 44;
+    drawGroundShadow(ctx, cx, cy + 16, 34, 16, 0.62);
+
+    // Stepped octagonal obsidian dais
+    ctx.fillStyle = '#1b1824';
+    ctx.strokeStyle = '#09080c';
+    ctx.lineWidth = 2.6;
+    ctx.beginPath();
+    ctx.moveTo(16, 20);
+    ctx.lineTo(68, 20);
+    ctx.lineTo(74, 30);
+    ctx.lineTo(74, 62);
+    ctx.lineTo(66, 70);
+    ctx.lineTo(18, 70);
+    ctx.lineTo(10, 62);
+    ctx.lineTo(10, 30);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Upper carved altar slab
+    const slabG = ctx.createLinearGradient(16, 20, 68, 56);
+    slabG.addColorStop(0, '#3f3a4f');
+    slabG.addColorStop(0.5, '#272330');
+    slabG.addColorStop(1, '#14111b');
+    ctx.fillStyle = slabG;
+    ctx.fillRect(16, 22, 52, 34);
+    ctx.strokeRect(16, 22, 52, 34);
+
+    // Recessed glowing blood basin
+    const bloodG = ctx.createRadialGradient(cx, 38, 2, cx, 38, 18);
+    bloodG.addColorStop(0, '#ef4444');
+    bloodG.addColorStop(0.65, '#991b1b');
+    bloodG.addColorStop(1, '#2a060a');
+    ctx.fillStyle = bloodG;
+    ctx.beginPath();
+    ctx.ellipse(cx, 39, 17, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#d4a64a';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+
+    // Floating faceted crimson blood crystal above the basin
+    ctx.fillStyle = '#dc2626';
+    ctx.strokeStyle = '#09080c';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(cx, 8);
+    ctx.lineTo(cx + 10, 24);
+    ctx.lineTo(cx, 38);
+    ctx.lineTo(cx - 10, 24);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Crystal light facet
+    ctx.fillStyle = '#fca5a5';
+    ctx.beginPath();
+    ctx.moveTo(cx, 11);
+    ctx.lineTo(cx - 6, 24);
+    ctx.lineTo(cx, 28);
+    ctx.closePath();
+    ctx.fill();
+
+    // 4 lit ritual candles on the altar corners
+    for (const [kx, ky] of [
+      [19, 24],
+      [65, 24],
+      [19, 52],
+      [65, 52],
+    ]) {
+      ctx.fillStyle = '#e7e5e4';
+      ctx.fillRect(kx - 2, ky - 4, 4, 7);
+      ctx.fillStyle = '#f97316';
+      ctx.beginPath();
+      ctx.arc(kx, ky - 6, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fef08a';
+      ctx.beginPath();
+      ctx.arc(kx, ky - 6, 1.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+
+  // Mysterious Hooded Relic Merchant (88x88 supersampled, rendered at 0.64 scale)
+  makeCanvas(scene, 'prop_merchant', 88, 88, (ctx) => {
+    const cx = 44;
+
+    // Ornate fringed crimson & gold merchant rug
+    ctx.fillStyle = '#4c1322';
+    ctx.strokeStyle = '#09080c';
+    ctx.lineWidth = 2.2;
+    ctx.fillRect(10, 44, 68, 34);
+    ctx.strokeRect(10, 44, 68, 34);
+    ctx.strokeStyle = '#d4a64a';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(14, 48, 60, 26);
+
+    // Small wooden relic crate & parchment scroll on rug
     ctx.fillStyle = '#78350f';
     ctx.strokeStyle = '#09080c';
-    ctx.lineWidth = 2;
-    ctx.fillRect(5, 8, 30, 20);
-    ctx.strokeRect(5, 8, 30, 20);
+    ctx.lineWidth = 1.6;
+    ctx.fillRect(16, 56, 14, 12);
+    ctx.strokeRect(16, 56, 14, 12);
     ctx.fillStyle = '#d4a64a';
-    ctx.fillRect(5, 14, 30, 4);
-    ctx.fillRect(17, 12, 6, 8);
-  });
+    ctx.fillRect(16, 60, 14, 2.5);
 
-  // Blood / Upgrade Altar
-  makeCanvas(scene, 'prop_altar', 46, 46, (ctx) => {
-    ctx.fillStyle = '#272330';
+    drawGroundShadow(ctx, cx, 58, 22, 10, 0.52);
+
+    // Layered dark indigo hooded cloak
+    const cloakG = ctx.createLinearGradient(cx, 12, cx, 62);
+    cloakG.addColorStop(0, '#312e59');
+    cloakG.addColorStop(0.5, '#1e1b33');
+    cloakG.addColorStop(1, '#0f0d1c');
+    ctx.fillStyle = cloakG;
     ctx.strokeStyle = '#09080c';
-    ctx.lineWidth = 2;
-    ctx.fillRect(6, 10, 34, 28);
-    ctx.strokeRect(6, 10, 34, 28);
-    ctx.fillStyle = '#dc2626';
+    ctx.lineWidth = 2.6;
     ctx.beginPath();
-    ctx.moveTo(23, 6);
-    ctx.lineTo(31, 20);
-    ctx.lineTo(23, 30);
-    ctx.lineTo(15, 20);
+    ctx.moveTo(cx, 10);
+    ctx.quadraticCurveTo(cx + 20, 24, cx + 22, 58);
+    ctx.lineTo(cx + 8, 63);
+    ctx.lineTo(cx, 59);
+    ctx.lineTo(cx - 8, 63);
+    ctx.lineTo(cx - 22, 58);
+    ctx.quadraticCurveTo(cx - 20, 24, cx, 10);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
-  });
 
-  // Mysterious Merchant (hooded relic peddler with warm lantern & carpet)
-  makeCanvas(scene, 'prop_merchant', 52, 52, (ctx) => {
-    // Crimson/gold merchant rug
-    ctx.fillStyle = '#451a24';
+    // Gold embroidered mantle hem & shoulder trim
     ctx.strokeStyle = '#d4a64a';
-    ctx.lineWidth = 1.5;
-    ctx.fillRect(6, 26, 40, 20);
-    ctx.strokeRect(6, 26, 40, 20);
-    // Ground shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.45)';
-    ctx.beginPath();
-    ctx.ellipse(26, 36, 14, 6, 0, 0, Math.PI * 2);
-    ctx.fill();
-    // Cloaked torso & hood
-    ctx.fillStyle = '#1e1b2e';
-    ctx.strokeStyle = '#09080c';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(26, 6);
-    ctx.lineTo(39, 34);
-    ctx.lineTo(13, 34);
+    ctx.moveTo(cx - 12, 34);
+    ctx.quadraticCurveTo(cx, 40, cx + 12, 34);
+    ctx.moveTo(cx, 38);
+    ctx.lineTo(cx, 59);
+    ctx.stroke();
+
+    // Deep shadowed cowl interior + glowing amber merchant eyes
+    ctx.fillStyle = '#07060b';
+    ctx.beginPath();
+    ctx.ellipse(cx, 25, 10, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+    drawGlowingEyes(ctx, cx - 6, 24, cx + 2, 24, 4, 3, '#facc15');
+
+    // Wrought-iron lantern crook & glowing glass lantern
+    ctx.strokeStyle = '#71717a';
+    ctx.lineWidth = 2.6;
+    ctx.beginPath();
+    ctx.moveTo(cx + 22, 60);
+    ctx.lineTo(cx + 24, 24);
+    ctx.quadraticCurveTo(cx + 26, 18, cx + 31, 22);
+    ctx.stroke();
+
+    const lg = ctx.createRadialGradient(cx + 31, 31, 2, cx + 31, 31, 14);
+    lg.addColorStop(0, '#fef08a');
+    lg.addColorStop(0.45, 'rgba(249,115,22,0.85)');
+    lg.addColorStop(1, 'rgba(249,115,22,0)');
+    ctx.fillStyle = lg;
+    ctx.beginPath();
+    ctx.arc(cx + 31, 31, 14, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#fef9c3';
+    ctx.strokeStyle = '#27272a';
+    ctx.lineWidth = 1.6;
+    ctx.fillRect(cx + 27, 26, 8, 10);
+    ctx.strokeRect(cx + 27, 26, 8, 10);
+  });
+
+  // Supersampled Faceted Pickups (rendered at ~0.68 scale for crisp detail)
+  makeCanvas(scene, 'pick_xp', 24, 24, (ctx) => {
+    const g = ctx.createRadialGradient(12, 12, 2, 12, 12, 11);
+    g.addColorStop(0, 'rgba(56,189,248,0.6)');
+    g.addColorStop(1, 'rgba(56,189,248,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(12, 12, 11, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#0284c7';
+    ctx.strokeStyle = '#082f49';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(12, 2);
+    ctx.lineTo(20, 12);
+    ctx.lineTo(12, 22);
+    ctx.lineTo(4, 12);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
-    // Gold cloak trim
-    ctx.strokeStyle = '#d4a64a';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(26, 10);
-    ctx.lineTo(26, 33);
-    ctx.stroke();
-    // Glowing amber eyes under hood
-    ctx.fillStyle = '#facc15';
-    ctx.fillRect(21, 16, 3, 2.5);
-    ctx.fillRect(28, 16, 3, 2.5);
-    // Warm hanging lantern
-    ctx.fillStyle = '#f97316';
-    ctx.beginPath();
-    ctx.arc(41, 22, 4.5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#fef08a';
-    ctx.beginPath();
-    ctx.arc(41, 22, 2, 0, Math.PI * 2);
-    ctx.fill();
-  });
 
-  // Pickups
-  makeCanvas(scene, 'pick_xp', 14, 14, (ctx) => {
-    ctx.fillStyle = '#38bdf8';
-    ctx.strokeStyle = '#0c4a6e';
-    ctx.lineWidth = 1.5;
+    ctx.fillStyle = '#7dd3fc';
     ctx.beginPath();
-    ctx.moveTo(7, 1);
-    ctx.lineTo(13, 7);
-    ctx.lineTo(7, 13);
-    ctx.lineTo(1, 7);
+    ctx.moveTo(12, 4);
+    ctx.lineTo(12, 12);
+    ctx.lineTo(6, 12);
     ctx.closePath();
     ctx.fill();
-    ctx.stroke();
+    ctx.fillStyle = '#f0f9ff';
+    ctx.fillRect(10, 7, 2.5, 2.5);
   });
 
-  makeCanvas(scene, 'pick_gold', 14, 14, (ctx) => {
-    ctx.fillStyle = '#facc15';
-    ctx.strokeStyle = '#854d0e';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(7, 7, 5.5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-  });
-
-  makeCanvas(scene, 'pick_crystal', 18, 22, (ctx) => {
-    ctx.fillStyle = '#c084fc';
-    ctx.strokeStyle = '#3b0764';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(9, 1);
-    ctx.lineTo(16, 9);
-    ctx.lineTo(12, 20);
-    ctx.lineTo(6, 20);
-    ctx.lineTo(2, 9);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-  });
-
-  makeCanvas(scene, 'pick_potion', 16, 18, (ctx) => {
-    ctx.fillStyle = '#ef4444';
-    ctx.strokeStyle = '#450a0a';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(8, 11, 6, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = '#e2e8f0';
-    ctx.fillRect(6, 2, 4, 4);
-  });
-
-  makeCanvas(scene, 'pick_gear', 22, 22, (ctx) => {
-    const g = ctx.createRadialGradient(11, 11, 2, 11, 11, 11);
+  makeCanvas(scene, 'pick_gold', 24, 24, (ctx) => {
+    const g = ctx.createRadialGradient(9, 9, 2, 12, 12, 10);
     g.addColorStop(0, '#fef08a');
-    g.addColorStop(0.6, '#f59e0b');
+    g.addColorStop(0.55, '#eab308');
+    g.addColorStop(1, '#a16207');
+    ctx.fillStyle = g;
+    ctx.strokeStyle = '#422006';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(12, 12, 8.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = '#fef9c3';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(12, 12, 5.5, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = '#713f12';
+    ctx.fillRect(11, 8, 2, 8);
+  });
+
+  makeCanvas(scene, 'pick_crystal', 28, 34, (ctx) => {
+    const glow = ctx.createRadialGradient(14, 17, 2, 14, 17, 14);
+    glow.addColorStop(0, 'rgba(192,132,252,0.55)');
+    glow.addColorStop(1, 'rgba(192,132,252,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(14, 17, 14, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#9333ea';
+    ctx.strokeStyle = '#2e1065';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(14, 2);
+    ctx.lineTo(24, 13);
+    ctx.lineTo(19, 31);
+    ctx.lineTo(9, 31);
+    ctx.lineTo(4, 13);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#e9d5ff';
+    ctx.beginPath();
+    ctx.moveTo(14, 4);
+    ctx.lineTo(14, 29);
+    ctx.lineTo(6, 14);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(11, 8, 2.5, 6);
+  });
+
+  makeCanvas(scene, 'pick_potion', 28, 32, (ctx) => {
+    // Cork & glass neck
+    ctx.fillStyle = '#b45309';
+    ctx.strokeStyle = '#09080c';
+    ctx.lineWidth = 1.8;
+    ctx.fillRect(10, 2, 8, 5);
+    ctx.strokeRect(10, 2, 8, 5);
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillRect(9, 7, 10, 4);
+    ctx.strokeRect(9, 7, 10, 4);
+
+    // Bulbous ruby flask
+    const g = ctx.createRadialGradient(11, 17, 2, 14, 20, 10);
+    g.addColorStop(0, '#fca5a5');
+    g.addColorStop(0.45, '#dc2626');
+    g.addColorStop(1, '#7f1d1d');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(14, 20, 9.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Crisp glass specular arc
+    ctx.strokeStyle = 'rgba(255,255,255,0.82)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(14, 20, 6.5, Math.PI * 1.08, Math.PI * 1.48);
+    ctx.stroke();
+  });
+
+  makeCanvas(scene, 'pick_gear', 36, 36, (ctx) => {
+    const g = ctx.createRadialGradient(18, 18, 3, 18, 18, 18);
+    g.addColorStop(0, 'rgba(254,249,195,0.95)');
+    g.addColorStop(0.5, 'rgba(245,158,11,0.55)');
     g.addColorStop(1, 'rgba(245,158,11,0)');
     ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.arc(11, 11, 11, 0, Math.PI * 2);
+    ctx.arc(18, 18, 18, 0, Math.PI * 2);
     ctx.fill();
+
+    // Ornate diamond relic coffer emblem
+    ctx.fillStyle = '#fef3c7';
+    ctx.strokeStyle = '#1e1b24';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(18, 5);
+    ctx.lineTo(30, 18);
+    ctx.lineTo(18, 31);
+    ctx.lineTo(6, 18);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(9, 5, 4, 12);
-    ctx.fillRect(6, 9, 10, 4);
+    ctx.beginPath();
+    ctx.moveTo(18, 10);
+    ctx.lineTo(24, 18);
+    ctx.lineTo(18, 26);
+    ctx.lineTo(12, 18);
+    ctx.closePath();
+    ctx.fill();
   });
 }

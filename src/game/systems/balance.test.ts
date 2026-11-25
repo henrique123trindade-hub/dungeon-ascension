@@ -228,3 +228,37 @@ test('rebalance config enforces rarity separation, biome difficulty jumps, wave 
   assert.equal(starter.stats.damage, 4);
 });
 
+test('Floor 10 Goblin King stays challenging without unfair 2-shot damage or bloated HP sponge', () => {
+  const goblinKing = getBossForFloor(10)!;
+  const glacialDragon = getBossForFloor(50)!;
+  const f10 = getEnemyScaling(10, 0);
+  const f50 = getEnemyScaling(50, 0);
+  const bc = BALANCE_CONFIG.bosses;
+
+  const gkHp = Math.round(bc.baseHpAnchor * goblinKing.hpMultiplier * f10.hpScale);
+  const gkDmg = Math.round(bc.baseDamageAnchor * goblinKing.damageMultiplier * f10.damageScale);
+  const gdHp = Math.round(bc.baseHpAnchor * glacialDragon.hpMultiplier * f50.hpScale);
+
+  const lv10Warrior = computePlayerStats({
+    classId: 'warrior',
+    level: 10,
+    mods: { ...createEmptyModifiers(), damagePct: 0.35, maxHpPct: 0.2 },
+    equipped: { weapon: createStarterWeapon('warrior') },
+    permanent: createDefaultPermanentUpgrades(),
+    ascensionLevel: 0,
+    activeSynergies: [],
+    skills: { shadow_slash: 2 },
+  });
+
+  // Challenging HP band (~3,000 - 4,800 HP) and fair punishing hits (4-6 hits to kill hero, never 2-shot)
+  assert.ok(gkHp >= 3000 && gkHp <= 4800, `Goblin King HP (${gkHp}) should sit in the fair milestone band`);
+  const effectiveHit = gkDmg * (1 - lv10Warrior.damageReduction);
+  const hitsToKillWarrior = lv10Warrior.maxHp / effectiveHit;
+  assert.ok(
+    hitsToKillWarrior >= 4.2 && hitsToKillWarrior <= 7.5,
+    `Goblin King hits-to-kill Lv10 Warrior (${hitsToKillWarrior.toFixed(2)}) should punish mistakes without 2-shotting`
+  );
+  assert.ok(gdHp > gkHp * 20, 'Floor 50 Mega-Boss must scale steeply above Floor 10 mini-boss');
+});
+
+

@@ -85,6 +85,7 @@ interface EnemyEntity {
   knockVy: number;
   dying: boolean;
   deathTimer: number;
+  recoveryTimer: number;
   bossPhase: number;
   strafeDir: number;
   summonCount: number;
@@ -170,14 +171,17 @@ interface PooledParticle {
   life: number;
   maxLife: number;
   startScale: number;
+  drag: number;
 }
 
 interface PooledDamageText {
   text: Phaser.GameObjects.Text;
   active: boolean;
+  vx: number;
   vy: number;
   life: number;
   maxLife: number;
+  isCrit: boolean;
 }
 
 export class DungeonScene extends Phaser.Scene implements DungeonController {
@@ -291,6 +295,9 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
   private particleCursor = 0;
   private damageTextPool: PooledDamageText[] = [];
   private damageTextCursor = 0;
+  private brazierGlows: Array<{ img: Phaser.GameObjects.Image; phase: number; baseScale: number }> = [];
+  private slashParity = false;
+  private decalCount = 0;
   private lastDamagedAt = 0;
   private footstepTimer = 0;
 
@@ -388,7 +395,7 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
 
   private initPools() {
     this.particlePool = [];
-    for (let i = 0; i < 160; i++) {
+    for (let i = 0; i < 220; i++) {
       const sp = this.add.sprite(-9999, -9999, 'fx_spark').setDepth(75).setVisible(false);
       this.particlePool.push({
         sprite: sp,
@@ -398,11 +405,12 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
         life: 0,
         maxLife: 0.3,
         startScale: 1,
+        drag: 1,
       });
     }
 
     this.damageTextPool = [];
-    for (let i = 0; i < 42; i++) {
+    for (let i = 0; i < 48; i++) {
       const txt = this.add
         .text(-9999, -9999, '', {
           fontFamily: 'JetBrains Mono, monospace',
@@ -418,9 +426,11 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
       this.damageTextPool.push({
         text: txt,
         active: false,
+        vx: 0,
         vy: -48,
         life: 0,
         maxLife: 0.7,
+        isCrit: false,
       });
     }
   }
@@ -623,6 +633,8 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     this.tileGroup?.clear(true, true);
     this.wallGroup?.clear(true, true);
     this.propGroup?.clear(true, true);
+    this.brazierGlows = [];
+    this.decalCount = 0;
     this.portalSprite?.destroy();
     this.portalSprite = undefined;
 
@@ -715,6 +727,7 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     const cols = Math.ceil(layout.roomWidth / layout.tileSize);
     const rows = Math.ceil(layout.roomHeight / layout.tileSize);
     const wallKey = `wall_${biome.index}`;
+    const pillarKey = `pillar_${biome.index}`;
 
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
@@ -725,59 +738,74 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
           const w = this.wallGroup.create(tx, ty, wallKey) as Phaser.Physics.Arcade.Sprite;
           w.setDepth(20).refreshBody();
         } else {
-          const variant = (r * 7 + c * 13 + floorNum * 3) % 3;
+          const variant = (r * 7 + c * 13 + floorNum * 3) % 4;
           const fl = this.add.image(tx, ty, `floor_${biome.index}_${variant}`).setDepth(5);
           this.tileGroup.add(fl);
         }
       }
     }
 
-    // Visual dungeon progression: biome-tinted central runic arena seal + deeper concentric rings on boss/deep floors
+    // Visual dungeon progression: biome-tinted central runic arena seal (adapts cleanly when a central pillar is present)
     const sealColor = isBoss
       ? 0xdc2626
       : Phaser.Display.Color.HexStringToColor(biome.accentGlow).color;
     const biomeDepthTier = Math.min(4, Math.floor((floorNum - 1) / 10));
-    const centerSeal = this.add
-      .circle(layout.roomWidth / 2, layout.roomHeight / 2, isBoss ? 156 : 118 + biomeDepthTier * 8, sealColor, isBoss ? 0.08 : 0.045)
-      .setStrokeStyle(isBoss ? 2.5 : 2, sealColor, isBoss ? 0.42 : 0.24)
-      .setDepth(7);
-    const innerSeal = this.add
-      .circle(layout.roomWidth / 2, layout.roomHeight / 2, isBoss ? 92 : 72, 0x000000, 0)
-      .setStrokeStyle(1.6, sealColor, isBoss ? 0.34 : 0.18)
-      .setDepth(7);
+    const hasCenterPillar = layout.pillars.some(
+      (p) => Math.hypot(p.x - layout.roomWidth / 2, p.y - layout.roomHeight / 2) < 90
+    );
     const portalDais = this.add
       .circle(layout.portalPos.x, layout.portalPos.y, 46, sealColor, 0.07)
       .setStrokeStyle(1.6, sealColor, 0.32)
       .setDepth(7);
-    this.propGroup.addMultiple([centerSeal, innerSeal, portalDais]);
+    this.propGroup.add(portalDais);
 
-    if (isBoss || biomeDepthTier >= 1) {
-      const outerHalo = this.add
-        .circle(layout.roomWidth / 2, layout.roomHeight / 2, isBoss ? 210 : 176, 0x000000, 0)
-        .setStrokeStyle(1.2, sealColor, isBoss ? 0.25 : 0.12)
+    if (hasCenterPillar && !isBoss) {
+      // Subtle etched stone pedestal halo tightly framing the central pillar
+      const plinthHalo = this.add
+        .circle(layout.roomWidth / 2, layout.roomHeight / 2, 54, sealColor, 0.04)
+        .setStrokeStyle(1.4, sealColor, 0.22)
         .setDepth(7);
-      this.propGroup.add(outerHalo);
+      this.propGroup.add(plinthHalo);
+    } else {
+      const centerSeal = this.add
+        .circle(layout.roomWidth / 2, layout.roomHeight / 2, isBoss ? 156 : 118 + biomeDepthTier * 8, sealColor, isBoss ? 0.08 : 0.045)
+        .setStrokeStyle(isBoss ? 2.5 : 2, sealColor, isBoss ? 0.42 : 0.24)
+        .setDepth(7);
+      const innerSeal = this.add
+        .circle(layout.roomWidth / 2, layout.roomHeight / 2, isBoss ? 92 : 72, 0x000000, 0)
+        .setStrokeStyle(1.6, sealColor, isBoss ? 0.34 : 0.18)
+        .setDepth(7);
+      this.propGroup.addMultiple([centerSeal, innerSeal]);
+      if (isBoss || biomeDepthTier >= 1) {
+        const outerHalo = this.add
+          .circle(layout.roomWidth / 2, layout.roomHeight / 2, isBoss ? 210 : 176, 0x000000, 0)
+          .setStrokeStyle(1.2, sealColor, isBoss ? 0.25 : 0.12)
+          .setDepth(7);
+        this.propGroup.add(outerHalo);
+      }
     }
 
-    // Internal pillars
+    // Internal sculpted gothic pillars (distinct architecture from perimeter walls)
     for (const p of layout.pillars) {
-      const pillar = this.wallGroup.create(p.x, p.y, wallKey) as Phaser.Physics.Arcade.Sprite;
+      const pillar = this.wallGroup.create(p.x, p.y, pillarKey) as Phaser.Physics.Arcade.Sprite;
       pillar.setDepth(25).refreshBody();
     }
 
-    // Flickering Braziers & atmospheric warm lights
-    for (const b of layout.braziers) {
-      const br = this.add.image(b.x, b.y, 'prop_brazier').setDepth(28);
+    // Flickering Cast-Iron Braziers & living warm torchlight
+    for (let bi = 0; bi < layout.braziers.length; bi++) {
+      const b = layout.braziers[bi];
+      const br = this.add.image(b.x, b.y, 'prop_brazier').setScale(0.64).setDepth(28);
       this.propGroup.add(br);
       if (this.settings.graphicsQuality !== 'low') {
         const glow = this.add
-          .image(b.x, b.y, 'fx_glow')
+          .image(b.x, b.y - 2, 'fx_glow')
           .setDepth(29)
-          .setScale(1.85)
+          .setScale(1.95)
           .setTint(biome.ambientTint)
-          .setAlpha(0.28)
+          .setAlpha(0.3)
           .setBlendMode(Phaser.BlendModes.ADD);
         this.propGroup.add(glow);
+        this.brazierGlows.push({ img: glow, phase: bi * 1.45, baseScale: 1.95 });
       }
     }
 
@@ -940,12 +968,20 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
           : kind === 'merchant'
             ? 'prop_merchant'
             : 'prop_portal';
-    const sprite = this.add.sprite(x, y, tex).setDepth(35);
-    if (kind === 'dimension_portal') sprite.setScale(0.75).setTint(0xf43f5e);
+    const scale =
+      kind === 'chest'
+        ? 0.62
+        : kind === 'altar'
+          ? 0.62
+          : kind === 'merchant'
+            ? 0.64
+            : 0.56;
+    const sprite = this.add.sprite(x, y, tex).setScale(scale).setDepth(35);
+    if (kind === 'dimension_portal') sprite.setTint(0xf43f5e);
     const auraColor =
       kind === 'chest' ? 0xf59e0b : kind === 'altar' ? 0xdc2626 : kind === 'merchant' ? 0xeab308 : 0xe879f9;
     const aura = this.add
-      .circle(x, y, 30, auraColor, 0.08)
+      .circle(x, y + 6, 30, auraColor, 0.08)
       .setStrokeStyle(1.5, auraColor, 0.45)
       .setDepth(34);
     this.propGroup?.add(aura);
@@ -1055,6 +1091,7 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
       knockVy: 0,
       dying: false,
       deathTimer: 0,
+      recoveryTimer: 0,
       bossPhase: 1,
       strafeDir: Math.random() < 0.5 ? -1 : 1,
       summonCount: 0,
@@ -1129,6 +1166,7 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
       knockVy: 0,
       dying: false,
       deathTimer: 0,
+      recoveryTimer: 0,
       bossPhase: 1,
       strafeDir: 1,
       summonCount: 0,
@@ -1171,6 +1209,16 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     this.updatePools(dt);
     this.updateTimedChallengeAndPortal(dt);
     this.drawTelegraphsAndBeams();
+
+    // Living torchlight flicker on dungeon braziers
+    if (this.brazierGlows.length > 0) {
+      const t = this.elapsedSec;
+      for (const bg of this.brazierGlows) {
+        const f = Math.sin(t * 7.2 + bg.phase) * 0.5 + Math.sin(t * 13.7 + bg.phase * 1.9) * 0.5;
+        bg.img.setAlpha(0.27 + f * 0.065);
+        bg.img.setScale(bg.baseScale + f * 0.12);
+      }
+    }
 
     // Ambient biome particles
     this.ambientParticleTimer -= dt;
@@ -1379,20 +1427,33 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
 
     if (cls.attackStyle === 'melee_cleave') {
       audioEngine.playAttack('melee');
+      this.slashParity = !this.slashParity;
       const range = this.computedStats.range;
-      const slashScale = range / 112;
+      const slashScale = range / 118;
+      const swingDir = this.slashParity ? 1 : -1;
       const slash = this.add
-        .sprite(this.player.x + Math.cos(angle) * 34, this.player.y + Math.sin(angle) * 34, 'fx_slash')
-        .setRotation(angle)
+        .sprite(this.player.x + Math.cos(angle) * 28, this.player.y + Math.sin(angle) * 28, 'fx_slash')
+        .setRotation(angle - swingDir * 0.18)
+        .setFlipY(this.slashParity)
         .setDepth(62)
-        .setScale(slashScale);
+        .setScale(slashScale * 0.88)
+        .setBlendMode(Phaser.BlendModes.ADD);
       this.tweens.add({
         targets: slash,
         alpha: 0,
-        scale: slashScale * 1.24,
-        duration: 155,
+        rotation: angle + swingDir * 0.24,
+        scale: slashScale * 1.18,
+        duration: 145,
+        ease: 'Cubic.Out',
         onComplete: () => slash.destroy(),
       });
+
+      // Crisp metallic sparks sweeping off the blade tip
+      if (this.settings.graphicsQuality !== 'low') {
+        const tipX = this.player.x + Math.cos(angle) * (range * 0.68);
+        const tipY = this.player.y + Math.sin(angle) * (range * 0.68);
+        this.spawnHitSparks(tipX, tipY, angle + swingDir * 0.45, 0xfdba74, 3, 140);
+      }
 
       // Hit all enemies inside 130° cone
       for (const e of this.enemies) {
@@ -1924,12 +1985,15 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
       // Frozen state (Time Freeze / Glacial Storm)
       if (e.freezeTimer > 0) {
         e.freezeTimer -= dt;
-        e.sprite.setTint(0x38bdf8);
+        if (e.flashTimer <= 0) {
+          e.sprite.clearTint();
+          e.sprite.setTint(0x38bdf8);
+        }
         body.setVelocity(e.knockVx, e.knockVy);
         e.knockVx *= Math.pow(0.05, dt);
         e.knockVy *= Math.pow(0.05, dt);
         this.syncEnemyDecor(e, dt);
-        if (e.freezeTimer <= 0) e.sprite.clearTint();
+        if (e.freezeTimer <= 0 && e.flashTimer <= 0) e.sprite.clearTint();
         continue;
       }
 
@@ -1947,11 +2011,43 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
       const berserkMult = e.eliteMod === 'berserker' && e.hp < e.maxHp * 0.5 ? 1.42 : 1;
       const moveSpeed = e.speed * berserkMult;
 
-      // Active telegraphed windup resolution
+      // Post-charge boss recovery punish window (skids & pants briefly so dodging feels rewarding)
+      if (e.recoveryTimer > 0) {
+        e.recoveryTimer -= dt;
+        body.setVelocity(e.knockVx * 0.65, e.knockVy * 0.65);
+        e.sprite.setScale(e.baseScale * 1.07, e.baseScale * 0.92);
+        if (Math.random() < 0.3 && this.settings.graphicsQuality !== 'low') {
+          this.spawnParticle(
+            e.sprite.x + (Math.random() - 0.5) * 26,
+            e.sprite.y + e.radius * 0.55,
+            (Math.random() - 0.5) * 35,
+            -18 - Math.random() * 20,
+            0x94a3b8,
+            0.32,
+            0.55
+          );
+        }
+        this.syncEnemyDecor(e, dt);
+        continue;
+      }
+
+      // Active telegraphed windup resolution with anticipation crouch & ember charge-up
       if (e.windupTimer > 0) {
         e.windupTimer -= dt;
+        const prog = 1 - Math.max(0, e.windupTimer / Math.max(0.05, e.windupMax));
+        const crouchX = e.baseScale * (1 + prog * 0.14);
+        const crouchY = e.baseScale * (1 - prog * 0.12);
+        e.sprite.setScale(crouchX, crouchY);
+        if (e.flashTimer <= 0 && prog > 0.55) {
+          const blink = Math.floor(this.elapsedSec * 22) % 2 === 0;
+          if (blink) e.sprite.setTint(e.bossDef ? 0xfef08a : 0xfca5a5);
+          else e.sprite.clearTint();
+        }
         body.setVelocity(e.knockVx * 0.2, e.knockVy * 0.2);
         if (e.windupTimer <= 0) {
+          if (e.flashTimer <= 0) e.sprite.clearTint();
+          // Visible strike follow-through pop
+          e.sprite.setScale(e.baseScale * 1.2, e.baseScale * 0.84);
           this.executeEnemyWindupAction(e);
           if (e.hasAttackToken) {
             e.hasAttackToken = false;
@@ -2188,17 +2284,30 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
 
     if (desiredPhase > e.bossPhase) {
       e.bossPhase = desiredPhase;
-      this.hitstopTimer = 0.065;
-      this.shakeTrauma = 0.7;
+      this.hitstopTimer = 0.075;
+      this.shakeTrauma = 0.72;
       audioEngine.playBossTelegraph();
-      this.spawnBurst(e.sprite.x, e.sprite.y, 0xf59e0b, 30, 240);
+      this.spawnBurst(e.sprite.x, e.sprite.y, 0xf59e0b, 32, 260);
+      this.spawnGroundScorch(e.sprite.x, e.sprite.y, 1.85);
+      const phaseRing = this.add
+        .circle(e.sprite.x, e.sprite.y, e.radius * 0.7, 0xf59e0b, 0.25)
+        .setStrokeStyle(4, 0xfef08a, 0.95)
+        .setDepth(64);
+      this.tweens.add({
+        targets: phaseRing,
+        scale: 4.5,
+        alpha: 0,
+        duration: 360,
+        ease: 'Cubic.Out',
+        onComplete: () => phaseRing.destroy(),
+      });
       this.pushNotice(`${boss.name} enfureceu — FASE ${e.bossPhase}!`, 'crimson');
-      e.attackCooldown = 0.5;
+      e.attackCooldown = 0.65;
       // Defensive shockwave nova on phase shift
-      const burstOrbs = 8 + e.bossPhase * 3;
+      const burstOrbs = 8 + e.bossPhase * 2;
       for (let k = 0; k < burstOrbs; k++) {
         const a = (Math.PI * 2 * k) / burstOrbs;
-        this.spawnEnemyProjectile(e.sprite.x, e.sprite.y, a, 280, e.damage * 0.85, 'proj_boss_orb');
+        this.spawnEnemyProjectile(e.sprite.x, e.sprite.y, a, 275, e.damage * 0.82, 'proj_boss_orb');
       }
     }
 
@@ -2306,17 +2415,19 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
         break;
       }
       case 'boss_charge_dash': {
-        e.attackCooldown = Math.max(1.0, 2.0 - (e.bossPhase - 1) * cdStep);
-        e.knockVx = Math.cos(ang) * 680;
-        e.knockVy = Math.sin(ang) * 680;
+        e.attackCooldown = Math.max(1.1, 2.15 - (e.bossPhase - 1) * cdStep);
+        e.knockVx = Math.cos(ang) * 660;
+        e.knockVy = Math.sin(ang) * 660;
+        e.recoveryTimer = BALANCE_CONFIG.bosses.chargeRecoverySec;
         this.shakeTrauma = Math.max(this.shakeTrauma, 0.4);
-        if (Phaser.Math.Distance.Between(e.sprite.x, e.sprite.y, this.player.x, this.player.y) <= e.radius + 102) {
-          this.damagePlayer(e.damage * 1.35, e);
+        this.spawnHitSparks(e.sprite.x, e.sprite.y, ang + Math.PI, 0xf59e0b, 8, 220);
+        if (Phaser.Math.Distance.Between(e.sprite.x, e.sprite.y, this.player.x, this.player.y) <= e.radius + 98) {
+          this.damagePlayer(e.damage * 1.28, e);
         }
         if (e.bossPhase >= 2) {
           // Leave shockwave orbs along flank on enraged charge
-          this.spawnEnemyProjectile(e.sprite.x, e.sprite.y, ang + 0.55, 310, e.damage * 0.8, 'proj_boss_orb');
-          this.spawnEnemyProjectile(e.sprite.x, e.sprite.y, ang - 0.55, 310, e.damage * 0.8, 'proj_boss_orb');
+          this.spawnEnemyProjectile(e.sprite.x, e.sprite.y, ang + 0.55, 305, e.damage * 0.78, 'proj_boss_orb');
+          this.spawnEnemyProjectile(e.sprite.x, e.sprite.y, ang - 0.55, 305, e.damage * 0.78, 'proj_boss_orb');
         }
         break;
       }
@@ -2468,7 +2579,27 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
       p.sprite.x += p.vx * dt;
       p.sprite.y += p.vy * dt;
 
+      // Subtle lightweight projectile trails on magic/heavy orbs
+      if (this.settings.graphicsQuality !== 'low') {
+        const key = p.sprite.texture.key;
+        if (
+          (key === 'proj_fireball' || key === 'proj_shadow_wave' || key === 'proj_boss_orb' || key === 'proj_arcane') &&
+          Math.random() < (this.settings.graphicsQuality === 'high' ? 0.55 : 0.28)
+        ) {
+          this.spawnParticle(
+            p.sprite.x + (Math.random() - 0.5) * 6,
+            p.sprite.y + (Math.random() - 0.5) * 6,
+            -p.vx * 0.12 + (Math.random() - 0.5) * 24,
+            -p.vy * 0.12 + (Math.random() - 0.5) * 24,
+            p.color,
+            0.2,
+            0.65
+          );
+        }
+      }
+
       let destroy = p.life <= 0;
+      let hitSolid = false;
       if (
         p.sprite.x < 56 ||
         p.sprite.x > this.roomWidth - 56 ||
@@ -2476,12 +2607,14 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
         p.sprite.y > this.roomHeight - 56
       ) {
         destroy = true;
+        hitSolid = true;
       }
 
       if (!destroy) {
         for (const pil of this.pillarsLayout) {
           if (Math.abs(p.sprite.x - pil.x) < pil.w * 0.5 && Math.abs(p.sprite.y - pil.y) < pil.h * 0.5) {
             destroy = true;
+            hitSolid = true;
             break;
           }
         }
@@ -2514,8 +2647,10 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
       }
 
       if (destroy) {
-        if (p.explosiveRadius > 0 && p.life <= 0) {
-          this.spawnBurst(p.sprite.x, p.sprite.y, p.color, 10, 110);
+        if (p.explosiveRadius > 0 && (p.life <= 0 || hitSolid)) {
+          this.spawnBurst(p.sprite.x, p.sprite.y, p.color, 10, 120);
+        } else if (hitSolid && this.settings.graphicsQuality !== 'low') {
+          this.spawnHitSparks(p.sprite.x, p.sprite.y, Math.atan2(-p.vy, -p.vx), p.color, 3, 110);
         }
         p.sprite.destroy();
         this.projectiles.splice(i, 1);
@@ -2711,13 +2846,14 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     );
 
     e.hp -= res.damage;
-    e.flashTimer = 0.065;
-    e.sprite.setTint(res.isCrit ? 0xfef08a : 0xffffff);
-    e.sprite.setScale(e.baseScale * 1.14, e.baseScale * 0.88);
+    e.flashTimer = res.isCrit ? 0.09 : 0.068;
+    // Crisp pure white / incandescent gold solid silhouette flash (Hades / Dead Cells impact read)
+    e.sprite.setTint(res.isCrit ? 0xfef08a : 0xffffff).setTintMode(Phaser.TintModes.FILL);
+    e.sprite.setScale(e.baseScale * (res.isCrit ? 1.24 : 1.16), e.baseScale * (res.isCrit ? 0.8 : 0.86));
 
     // Directional knockback (reduced for bosses/golems)
     const kbResist = e.bossDef ? 0.1 : e.archetypeId === 'golem' ? 0.22 : 1;
-    const kbForce = (isHeavy ? 190 : 108) * kbResist;
+    const kbForce = (isHeavy ? 210 : 118) * kbResist * (res.isCrit ? 1.25 : 1);
     e.knockVx += Math.cos(hitAngle) * kbForce;
     e.knockVy += Math.sin(hitAngle) * kbForce;
 
@@ -2740,32 +2876,62 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
 
     audioEngine.playHit(res.isCrit);
     this.spawnDamageText(
-      e.sprite.x + (Math.random() - 0.5) * 16,
+      e.sprite.x + (Math.random() - 0.5) * 18,
       e.sprite.y - e.radius - 12,
       res.isCrit ? `${res.damage}!` : `${res.damage}`,
       res.isCrit ? '#facc15' : '#f8fafc',
       res.isCrit
     );
-    this.spawnBurst(e.sprite.x, e.sprite.y, res.isCrit ? 0xfacc15 : 0xf1f5f9, res.isCrit ? 11 : 5, res.isCrit ? 155 : 120);
 
-    // Crisp impact shock ring on critical or heavy strikes
+    // Directional kinetic hit sparks along strike trajectory + radial ember pop
+    this.spawnHitSparks(
+      e.sprite.x,
+      e.sprite.y,
+      hitAngle,
+      res.isCrit ? 0xfacc15 : isHeavy ? 0xfdba74 : 0xf8fafc,
+      res.isCrit ? 9 : isHeavy ? 6 : 4,
+      res.isCrit ? 260 : 185
+    );
+    this.spawnBurst(e.sprite.x, e.sprite.y, res.isCrit ? 0xfef08a : 0xf1f5f9, res.isCrit ? 6 : 3, res.isCrit ? 155 : 105);
+
+    // Unmistakable 4-point star flare on critical strikes + crisp shock ring on heavy/crit hits
+    if (res.isCrit) {
+      const star = this.add
+        .sprite(e.sprite.x, e.sprite.y, 'fx_crit_star')
+        .setDepth(76)
+        .setScale(0.45)
+        .setRotation(Math.random() * Math.PI)
+        .setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({
+        targets: star,
+        scale: 1.38,
+        alpha: 0,
+        duration: 165,
+        ease: 'Cubic.Out',
+        onComplete: () => star.destroy(),
+      });
+    }
+
     if (res.isCrit || isHeavy) {
       const ring = this.add
-        .circle(e.sprite.x, e.sprite.y, res.isCrit ? 12 : 8, res.isCrit ? 0xfacc15 : 0xffffff, 0.16)
-        .setStrokeStyle(res.isCrit ? 2.4 : 1.5, res.isCrit ? 0xfacc15 : 0xe2e8f0, 0.85)
+        .circle(e.sprite.x, e.sprite.y, res.isCrit ? 13 : 9, res.isCrit ? 0xfacc15 : 0xffffff, 0.18)
+        .setStrokeStyle(res.isCrit ? 2.5 : 1.6, res.isCrit ? 0xfef08a : 0xe2e8f0, 0.88)
         .setDepth(64);
       this.tweens.add({
         targets: ring,
-        scale: res.isCrit ? 2.6 : 1.9,
+        scale: res.isCrit ? 2.8 : 2.0,
         alpha: 0,
-        duration: 145,
+        duration: 150,
+        ease: 'Cubic.Out',
         onComplete: () => ring.destroy(),
       });
     }
 
-    if (res.isCrit && isHeavy) {
-      this.hitstopTimer = Math.max(this.hitstopTimer, 0.036);
-      this.shakeTrauma = Math.max(this.shakeTrauma, 0.24);
+    if (res.isCrit) {
+      this.hitstopTimer = Math.max(this.hitstopTimer, isHeavy ? 0.042 : 0.026);
+      this.shakeTrauma = Math.max(this.shakeTrauma, isHeavy ? 0.28 : 0.16);
+    } else if (isHeavy) {
+      this.shakeTrauma = Math.max(this.shakeTrauma, 0.11);
     }
 
     if (e.hp <= 0) {
@@ -2811,10 +2977,28 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     }
 
     const isBoss = Boolean(e.bossDef);
+    const isElite = Boolean(e.eliteMod);
     audioEngine.playEnemyDeath(isBoss);
-    this.spawnBurst(e.sprite.x, e.sprite.y, isBoss ? 0xf59e0b : 0xdc2626, isBoss ? 30 : 15, isBoss ? 235 : 150);
-    this.hitstopTimer = Math.max(this.hitstopTimer, isBoss ? 0.075 : 0.03);
-    this.shakeTrauma = Math.max(this.shakeTrauma, isBoss ? 0.62 : 0.18);
+    const burstColor = isBoss ? 0xf59e0b : isElite ? 0xf97316 : 0xdc2626;
+    this.spawnBurst(e.sprite.x, e.sprite.y, burstColor, isBoss ? 34 : isElite ? 22 : 14, isBoss ? 255 : 165);
+    this.spawnHitSparks(e.sprite.x, e.sprite.y, Math.atan2(e.knockVy, e.knockVx), burstColor, isBoss ? 14 : 7, isBoss ? 280 : 195);
+    this.spawnGroundScorch(e.sprite.x, e.sprite.y, isBoss ? 1.8 : isElite ? 1.15 : 0.85);
+
+    const deathRing = this.add
+      .circle(e.sprite.x, e.sprite.y, isBoss ? 24 : 12, burstColor, 0.2)
+      .setStrokeStyle(isBoss ? 3.5 : 2, isBoss ? 0xfef08a : burstColor, 0.9)
+      .setDepth(64);
+    this.tweens.add({
+      targets: deathRing,
+      scale: isBoss ? 4.2 : isElite ? 2.9 : 2.3,
+      alpha: 0,
+      duration: isBoss ? 340 : 210,
+      ease: 'Cubic.Out',
+      onComplete: () => deathRing.destroy(),
+    });
+
+    this.hitstopTimer = Math.max(this.hitstopTimer, isBoss ? 0.085 : isElite ? 0.045 : 0.032);
+    this.shakeTrauma = Math.max(this.shakeTrauma, isBoss ? 0.68 : isElite ? 0.32 : 0.2);
 
     if (!grantRewards) return;
 
@@ -3001,7 +3185,10 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
             : kind === 'potion'
               ? 'pick_potion'
               : 'pick_gear';
-    const sp = this.add.sprite(x, y, tex).setDepth(48);
+    const sp = this.add
+      .sprite(x, y, tex)
+      .setScale(kind === 'gear' ? 0.72 : 0.66)
+      .setDepth(48);
     if (kind === 'gear' && gearItem) {
       sp.setTint(Phaser.Display.Color.HexStringToColor(RARITY_META[gearItem.rarity].color).color);
     }
@@ -3205,7 +3392,7 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
 
     if (floorCleared && !this.portalOpen) {
       this.portalOpen = true;
-      this.portalSprite = this.add.sprite(this.portalPos.x, this.portalPos.y, 'prop_portal').setDepth(38);
+      this.portalSprite = this.add.sprite(this.portalPos.x, this.portalPos.y, 'prop_portal').setScale(0.72).setDepth(38);
       audioEngine.playPortalOpen();
 
       // Floor clear XP & crystal bonus
@@ -3649,7 +3836,17 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     this.tweens.add({ targets: g, alpha: 0, duration: 150, onComplete: () => g.destroy() });
   }
 
-  private spawnParticle(x: number, y: number, vx: number, vy: number, color: number, life: number, scale: number) {
+  private spawnParticle(
+    x: number,
+    y: number,
+    vx: number,
+    vy: number,
+    color: number,
+    life: number,
+    scale: number,
+    texture: 'fx_spark' | 'fx_spark_streak' = 'fx_spark',
+    drag = 0.25
+  ) {
     if (this.particlePool.length === 0) return;
     const p = this.particlePool[this.particleCursor];
     this.particleCursor = (this.particleCursor + 1) % this.particlePool.length;
@@ -3659,7 +3856,62 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     p.life = life;
     p.maxLife = life;
     p.startScale = scale;
-    p.sprite.setPosition(x, y).setTint(color).setAlpha(1).setScale(scale).setVisible(true);
+    p.drag = drag;
+    p.sprite
+      .setTexture(texture)
+      .setPosition(x, y)
+      .setRotation(texture === 'fx_spark_streak' ? Math.atan2(vy, vx) : 0)
+      .setTint(color)
+      .setAlpha(1)
+      .setScale(scale)
+      .setVisible(true);
+  }
+
+  private spawnHitSparks(x: number, y: number, baseAngle: number, color: number, count: number, speed: number) {
+    const cap =
+      this.settings.graphicsQuality === 'low'
+        ? Math.ceil(count * 0.4)
+        : this.settings.graphicsQuality === 'medium'
+          ? Math.ceil(count * 0.7)
+          : count;
+    for (let i = 0; i < cap; i++) {
+      const spread = (Math.random() - 0.5) * 1.15;
+      const a = baseAngle + spread;
+      const s = speed * (0.55 + Math.random() * 0.65);
+      this.spawnParticle(
+        x,
+        y,
+        Math.cos(a) * s,
+        Math.sin(a) * s,
+        color,
+        0.16 + Math.random() * 0.12,
+        0.72 + Math.random() * 0.5,
+        'fx_spark_streak',
+        0.04
+      );
+    }
+  }
+
+  private spawnGroundScorch(x: number, y: number, scale = 1) {
+    if (this.settings.graphicsQuality === 'low' || this.decalCount >= 18) return;
+    this.decalCount++;
+    const mark = this.add
+      .image(x, y + 6, 'fx_scorch')
+      .setDepth(8)
+      .setScale(scale)
+      .setRotation(Math.random() * Math.PI * 2)
+      .setAlpha(0.55);
+    this.propGroup?.add(mark);
+    this.tweens.add({
+      targets: mark,
+      alpha: 0,
+      delay: 2400,
+      duration: 1400,
+      onComplete: () => {
+        this.decalCount = Math.max(0, this.decalCount - 1);
+        if (mark.active) mark.destroy();
+      },
+    });
   }
 
   private spawnBurst(x: number, y: number, color: number, count: number, speed: number) {
@@ -3667,7 +3919,7 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     for (let i = 0; i < cap; i++) {
       const a = Math.random() * Math.PI * 2;
       const s = speed * (0.4 + Math.random() * 0.75);
-      this.spawnParticle(x, y, Math.cos(a) * s, Math.sin(a) * s, color, 0.25 + Math.random() * 0.22, 0.65 + Math.random() * 0.6);
+      this.spawnParticle(x, y, Math.cos(a) * s, Math.sin(a) * s, color, 0.24 + Math.random() * 0.2, 0.65 + Math.random() * 0.55);
     }
   }
 
@@ -3676,14 +3928,17 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     const item = this.damageTextPool[this.damageTextCursor];
     this.damageTextCursor = (this.damageTextCursor + 1) % this.damageTextPool.length;
     item.active = true;
-    item.life = isCrit ? 0.85 : 0.62;
+    item.life = isCrit ? 0.88 : 0.62;
     item.maxLife = item.life;
-    item.vy = isCrit ? -68 : -46;
+    item.vx = (Math.random() - 0.5) * (isCrit ? 52 : 34);
+    item.vy = isCrit ? -86 : -56;
+    item.isCrit = isCrit;
     item.text
       .setPosition(x, y)
       .setText(label)
       .setColor(color)
-      .setFontSize(isCrit ? '20px' : '14px')
+      .setFontSize(isCrit ? '21px' : '14px')
+      .setScale(isCrit ? 1.45 : 1.18)
       .setAlpha(1)
       .setVisible(true);
   }
@@ -3697,11 +3952,14 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
         p.sprite.setVisible(false);
         continue;
       }
+      const damp = Math.pow(p.drag, dt);
+      p.vx *= damp;
+      p.vy *= damp;
       p.sprite.x += p.vx * dt;
       p.sprite.y += p.vy * dt;
       const ratio = p.life / p.maxLife;
       p.sprite.setAlpha(ratio);
-      p.sprite.setScale(p.startScale * ratio);
+      p.sprite.setScale(p.startScale * (0.35 + ratio * 0.65));
     }
 
     for (const t of this.damageTextPool) {
@@ -3712,8 +3970,14 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
         t.text.setVisible(false);
         continue;
       }
+      t.text.x += t.vx * dt;
       t.text.y += t.vy * dt;
-      t.text.setAlpha(Math.min(1, (t.life / t.maxLife) * 1.4));
+      t.vy += (t.isCrit ? 78 : 48) * dt;
+      t.vx *= Math.pow(0.18, dt);
+      const elapsedRatio = 1 - t.life / t.maxLife;
+      const targetScale = elapsedRatio < 0.2 ? Phaser.Math.Linear(t.isCrit ? 1.45 : 1.18, 1.0, elapsedRatio / 0.2) : 1.0;
+      t.text.setScale(targetScale);
+      t.text.setAlpha(Math.min(1, (t.life / t.maxLife) * 1.45));
     }
   }
 

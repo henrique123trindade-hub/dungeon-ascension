@@ -81,13 +81,13 @@ export const BALANCE_CONFIG = {
     midFloorAttackTokens: 8,
     midFloorThreshold: 16,
     /** HP scaling formula: (base + (f-1)*linear + (f-1)^exp * curve) * (1 + block * blockStep) */
-    hpBase: 1.28,
+    hpBase: 1.24,
     hpLinear: 0.31,
     hpCurveExp: 1.47,
     hpCurveCoef: 0.058,
     hpBiomeBlockStep: 0.18,
     /** Damage scaling formula */
-    dmgBase: 1.22,
+    dmgBase: 1.2,
     dmgLinear: 0.175,
     dmgCurveExp: 1.28,
     dmgCurveCoef: 0.03,
@@ -111,15 +111,17 @@ export const BALANCE_CONFIG = {
   },
 
   bosses: {
-    baseHpAnchor: 145,
-    baseDamageAnchor: 20,
-    baseResistanceBonus: 0.14,
-    phase2SpeedBoost: 0.24,
-    phase3SpeedBoost: 0.44,
+    baseHpAnchor: 96,
+    baseDamageAnchor: 13.5,
+    baseResistanceBonus: 0.1,
+    phase2SpeedBoost: 0.22,
+    phase3SpeedBoost: 0.4,
     /** Enraged cooldown reduction per phase */
-    phaseCooldownStep: 0.28,
+    phaseCooldownStep: 0.24,
     /** Boss minion summon cap */
-    maxBossAdds: 4,
+    maxBossAdds: 3,
+    /** Post-charge recovery punish window (seconds) */
+    chargeRecoverySec: 0.55,
   },
 
   skills: {
