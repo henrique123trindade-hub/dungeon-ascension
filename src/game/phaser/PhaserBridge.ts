@@ -12,9 +12,17 @@ import type {
   UpgradeOption,
 } from '../types';
 
+export interface LevelUpOfferPayload {
+  offerId: number;
+  level: number;
+  pendingCount: number;
+  options: UpgradeOption[];
+  pointerWasDown: boolean;
+}
+
 export interface BridgeCallbacks {
   onHudUpdate: (hud: RunHUDSnapshot) => void;
-  onLevelUpOffer: (options: UpgradeOption[], newLevel: number) => void;
+  onLevelUpOffer: (payload: LevelUpOfferPayload) => void;
   onEventTrigger: (payload: ActiveEventPayload) => void;
   onSynergyUnlocked: (synergyId: SynergyId) => void;
   onEnemyKilled: (archetypeOrBossId: string, isBoss: boolean) => void;
@@ -29,7 +37,9 @@ export interface BridgeCallbacks {
 export interface DungeonController {
   startNewRun: (classId: ClassId, save: SaveData) => void;
   setPaused: (paused: boolean) => void;
-  selectUpgrade: (option: UpgradeOption) => void;
+  selectUpgrade: (option: UpgradeOption) => { hasMorePending: boolean };
+  openNextPendingLevelUp: () => void;
+  resumeAfterLevelUp: () => void;
   resolveEventChoice: (choiceId: string) => void;
   equipItem: (itemId: string) => void;
   unequipSlot: (slot: EquipmentSlot) => void;
@@ -47,6 +57,7 @@ export interface DungeonController {
   cancelPendingCast: () => void;
   stopRun: () => void;
   getCurrentHud: () => RunHUDSnapshot | null;
+  debugGrantXp?: (amount: number) => void;
 }
 
 class PhaserBridge {
@@ -73,8 +84,8 @@ class PhaserBridge {
     this.callbacks?.onHudUpdate(hud);
   }
 
-  public emitLevelUp(options: UpgradeOption[], newLevel: number) {
-    this.callbacks?.onLevelUpOffer(options, newLevel);
+  public emitLevelUp(payload: LevelUpOfferPayload) {
+    this.callbacks?.onLevelUpOffer(payload);
   }
 
   public emitEvent(payload: ActiveEventPayload) {

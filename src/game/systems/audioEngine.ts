@@ -202,14 +202,50 @@ class AudioEngine {
         : highestRarity === 'legendary'
           ? [392, 494, 587, 784, 988]
           : [330, 440, 554, 659];
+    // Warm resonant foundation chord
+    this.playTone({
+      type: 'sine',
+      freqStart: 165,
+      freqEnd: 220,
+      duration: 0.42,
+      gain: 0.12,
+    });
     notes.forEach((n, idx) => {
       this.playTone({
         type: highestRarity === 'mythic' || highestRarity === 'legendary' ? 'triangle' : 'sine',
         freqStart: n,
-        duration: 0.24,
+        duration: 0.26,
         gain: 0.15,
-        delay: idx * 0.065,
+        delay: idx * 0.06,
       });
+    });
+  }
+
+  public playUpgradeSelect(rarity: Rarity) {
+    const base =
+      rarity === 'mythic'
+        ? 659
+        : rarity === 'legendary'
+          ? 587
+          : rarity === 'epic'
+            ? 523
+            : rarity === 'rare'
+              ? 494
+              : 440;
+    this.playTone({
+      type: 'triangle',
+      freqStart: base,
+      freqEnd: base * 1.25,
+      duration: 0.13,
+      gain: 0.14,
+    });
+    this.playTone({
+      type: 'sine',
+      freqStart: base * 1.5,
+      freqEnd: base * 2,
+      duration: 0.18,
+      gain: rarity === 'mythic' || rarity === 'legendary' ? 0.16 : 0.11,
+      delay: 0.045,
     });
   }
 

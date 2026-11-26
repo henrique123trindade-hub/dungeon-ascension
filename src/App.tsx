@@ -9,7 +9,7 @@ import { SanctuaryModal } from './components/SanctuaryModal';
 import { GameOverModal, PauseModal, SettingsModal } from './components/SystemModals';
 import { TitleScreen } from './components/TitleScreen';
 import { ACHIEVEMENTS } from './game/data/achievements';
-import { phaserBridge } from './game/phaser/PhaserBridge';
+import { phaserBridge, type LevelUpOfferPayload } from './game/phaser/PhaserBridge';
 import { PhaserCanvas } from './game/phaser/PhaserCanvas';
 import { audioEngine } from './game/systems/audioEngine';
 import {
@@ -41,7 +41,7 @@ export default function App() {
   const [activeModal, setActiveModal] = useState<ActiveModalType>(null);
   const [characterTab, setCharacterTab] = useState<'inventory' | 'skills' | 'stats'>('inventory');
   const [hud, setHud] = useState<RunHUDSnapshot | null>(null);
-  const [levelUpState, setLevelUpState] = useState<{ options: UpgradeOption[]; level: number } | null>(null);
+  const [levelUpOffer, setLevelUpOffer] = useState<LevelUpOfferPayload | null>(null);
   const [activeEvent, setActiveEvent] = useState<ActiveEventPayload | null>(null);
   const [runSummary, setRunSummary] = useState<RunSummarySnapshot | null>(null);
   const [phaserReady, setPhaserReady] = useState(false);
@@ -52,6 +52,44 @@ export default function App() {
   gameStateRef.current = gameState;
   const activeModalRef = useRef(activeModal);
   activeModalRef.current = activeModal;
+  const globalPointerDownRef = useRef(false);
+  const globalHeldKeysRef = useRef<Set<string>>(new Set());
+
+  // Track primary pointer & Digit1-3 state continuously so level-up modal knows if combat input was already held
+  useEffect(() => {
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.button === 0) globalPointerDownRef.current = true;
+    };
+    const onPointerUp = () => {
+      globalPointerDownRef.current = false;
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Digit1' || e.code === 'Digit2' || e.code === 'Digit3') {
+        globalHeldKeysRef.current.add(e.code);
+      }
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      globalHeldKeysRef.current.delete(e.code);
+    };
+    const onBlur = () => {
+      globalPointerDownRef.current = false;
+      globalHeldKeysRef.current.clear();
+    };
+    window.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('pointerup', onPointerUp, true);
+    window.addEventListener('pointercancel', onPointerUp, true);
+    window.addEventListener('keydown', onKeyDown, true);
+    window.addEventListener('keyup', onKeyUp, true);
+    window.addEventListener('blur', onBlur);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('pointerup', onPointerUp, true);
+      window.removeEventListener('pointercancel', onPointerUp, true);
+      window.removeEventListener('keydown', onKeyDown, true);
+      window.removeEventListener('keyup', onKeyUp, true);
+      window.removeEventListener('blur', onBlur);
+    };
+  }, []);
 
   const updateSave = useCallback((updater: (prev: SaveData) => SaveData) => {
     setSave((prev) => {
@@ -79,8 +117,8 @@ export default function App() {
       onHudUpdate: (snapshot) => {
         setHud(snapshot);
       },
-      onLevelUpOffer: (options, newLevel) => {
-        setLevelUpState({ options, level: newLevel });
+      onLevelUpOffer: (payload) => {
+        setLevelUpOffer(payload);
         setActiveModal('levelUp');
       },
       onEventTrigger: (payload) => {
@@ -117,7 +155,7 @@ export default function App() {
       onRunEnded: (summary) => {
         setRunSummary(summary);
         setActiveModal(null);
-        setLevelUpState(null);
+        setLevelUpOffer(null);
         setActiveEvent(null);
         document.body.dataset.state = 'gameover';
         setGameState('gameover');
@@ -159,7 +197,7 @@ export default function App() {
     }
     audioEngine.playUiClick();
     setActiveModal(null);
-    setLevelUpState(null);
+    setLevelUpOffer(null);
     setActiveEvent(null);
     setRunSummary(null);
     document.body.dataset.state = 'playing';
@@ -198,7 +236,7 @@ export default function App() {
     phaserBridge.getController()?.stopRun();
     setHud(null);
     setActiveModal(null);
-    setLevelUpState(null);
+    setLevelUpOffer(null);
     setActiveEvent(null);
     setRunSummary(null);
     document.body.dataset.state = 'title';
@@ -275,11 +313,20 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [characterTab, openCharacterTab, openPause, resumePlaying, toggleMute]);
 
-  const handleChooseUpgrade = useCallback((option: UpgradeOption) => {
-    audioEngine.playUiClick();
-    setLevelUpState(null);
-    setActiveModal(null);
-    phaserBridge.getController()?.selectUpgrade(option);
+  const handleCommitUpgrade = useCallback((option: UpgradeOption): { hasMorePending: boolean } => {
+    const result = phaserBridge.getController()?.selectUpgrade(option);
+    return result ?? { hasMorePending: false };
+  }, []);
+
+  const handleLevelUpTransitionComplete = useCallback((hasMorePending: boolean) => {
+    const ctrl = phaserBridge.getController();
+    if (hasMorePending) {
+      ctrl?.openNextPendingLevelUp();
+    } else {
+      setLevelUpOffer(null);
+      setActiveModal(null);
+      ctrl?.resumeAfterLevelUp();
+    }
   }, []);
 
   const handleResolveEvent = useCallback((choiceId: string) => {
@@ -400,12 +447,14 @@ export default function App() {
       )}
 
       {/* Level-Up 3-Choice Modal */}
-      {activeModal === 'levelUp' && levelUpState && (
+      {activeModal === 'levelUp' && levelUpOffer && (
         <LevelUpModal
-          level={levelUpState.level}
+          offer={levelUpOffer}
           luck={hud?.computedStats.luck ?? 0}
-          options={levelUpState.options}
-          onChoose={handleChooseUpgrade}
+          initialPointerHeld={globalPointerDownRef.current}
+          initialHeldKeys={Array.from(globalHeldKeysRef.current)}
+          onCommitChoice={handleCommitUpgrade}
+          onTransitionComplete={handleLevelUpTransitionComplete}
         />
       )}
 

@@ -336,6 +336,8 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
   private recentNoticeTimer = 0;
   private lastHudSnapshot: RunHUDSnapshot | null = null;
   private levelUpPendingQueue = 0;
+  private levelUpOfferCounter = 1;
+  private postModalClickSuppressTimer = 0;
   private keysHeld = new Set<string>();
   private mouseDown = false;
   private pointerScreenX = 0;
@@ -393,7 +395,7 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
 
     // Pointer tracking (supports Normal Cast confirm on LMB & cancel on RMB)
     this.input.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
-      if (!this.isActiveRun || this.isPaused) return;
+      if (!this.isActiveRun || this.isPaused || this.postModalClickSuppressTimer > 0) return;
       const evTarget = ptr.event?.target;
       if (
         (evTarget instanceof Element &&
@@ -567,9 +569,12 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     this.mobileMoveX = 0;
     this.mobileMoveY = 0;
     this.mobileFiring = false;
+    this.dashBufferTimer = 0;
     this.pendingCast = null;
     this.cooldownPreview = null;
     this.forcedDashAngle = null;
+    this.autoTargetId = null;
+    this.lastAutoTarget = null;
     this.pointerOverHud = false;
   }
 
@@ -616,6 +621,7 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     this.targetingRenderer?.clear();
     this.autoTargetId = null;
     this.lastAutoTarget = null;
+    this.postModalClickSuppressTimer = 0;
     this.comboHits = 0;
     this.comboTimer = 0;
   }
@@ -650,6 +656,7 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     this.equipped = {};
     this.inventory = [];
     this.levelUpPendingQueue = 0;
+    this.postModalClickSuppressTimer = 0;
     this.furyTimer = 0;
     this.swiftKillTimer = 0;
     this.playerSlowTimer = 0;
@@ -1411,6 +1418,9 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
 
     // Timers
     if (this.invulnTimer > 0) this.invulnTimer = Math.max(0, this.invulnTimer - dt);
+    if (this.postModalClickSuppressTimer > 0) {
+      this.postModalClickSuppressTimer = Math.max(0, this.postModalClickSuppressTimer - dt);
+    }
     if (this.dashCooldown > 0) this.dashCooldown = Math.max(0, this.dashCooldown - dt);
     if (this.dashBufferTimer > 0) this.dashBufferTimer = Math.max(0, this.dashBufferTimer - dt);
     if (this.attackCooldown > 0) this.attackCooldown = Math.max(0, this.attackCooldown - dt);
@@ -3472,7 +3482,7 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
   }
 
   private damagePlayer(rawDmg: number, attacker: EnemyEntity | null, appliesSlow = false) {
-    if (this.invulnTimer > 0 || this.isEndingRun) return;
+    if (this.isPaused || this.invulnTimer > 0 || this.isEndingRun) return;
 
     // Dodge roll
     if (Math.random() < this.computedStats.dodge) {
@@ -3715,24 +3725,32 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
   }
 
   private openNextLevelUpChoice() {
+    const pointerWasDown = this.mouseDown || Boolean(this.input.activePointer?.isDown);
     this.levelUpPendingQueue = Math.max(0, this.levelUpPendingQueue - 1);
+    const choiceLevel = Math.max(2, this.level - this.levelUpPendingQueue);
     const options = generateLevelUpOptions({
       luck: this.computedStats.luck,
       currentSkills: this.skills,
-      playerLevel: this.level,
+      playerLevel: choiceLevel,
     });
     const highest = options.reduce((acc, o) => {
       const rank = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'];
       return rank.indexOf(o.rarity) > rank.indexOf(acc) ? o.rarity : acc;
     }, options[0].rarity);
 
-    audioEngine.playLevelUp(highest);
     this.setPaused(true);
+    audioEngine.playLevelUp(highest);
     this.emitHudSnapshot(true);
-    phaserBridge.emitLevelUp(options, this.level);
+    phaserBridge.emitLevelUp({
+      offerId: this.levelUpOfferCounter++,
+      level: choiceLevel,
+      pendingCount: this.levelUpPendingQueue,
+      options,
+      pointerWasDown,
+    });
   }
 
-  public selectUpgrade(option: UpgradeOption) {
+  public selectUpgrade(option: UpgradeOption): { hasMorePending: boolean } {
     if (option.kind === 'skill' && option.skillId && option.nextSkillLevel) {
       this.grantSkillLevel(option.skillId, option.nextSkillLevel, true);
     } else if (option.kind === 'stat' && option.statDelta) {
@@ -3751,13 +3769,33 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     }
 
     this.recomputeStats(false);
+    this.emitHudSnapshot(true);
+    return { hasMorePending: this.levelUpPendingQueue > 0 };
+  }
 
+  public openNextPendingLevelUp() {
     if (this.levelUpPendingQueue > 0) {
       this.openNextLevelUpChoice();
     } else {
-      this.setPaused(false);
-      this.emitHudSnapshot(true);
+      this.resumeAfterLevelUp();
     }
+  }
+
+  public resumeAfterLevelUp() {
+    if (!this.isActiveRun || this.isEndingRun) return;
+    this.clearHeldInputs();
+    this.invulnTimer = Math.max(this.invulnTimer, 0.85);
+    this.postModalClickSuppressTimer = 0.24;
+    if (this.player) {
+      this.spawnBurst(this.player.x, this.player.y, 0xd4a64a, 14, 145);
+    }
+    this.setPaused(false);
+    this.emitHudSnapshot(true);
+  }
+
+  public debugGrantXp(amount: number) {
+    if (!this.isActiveRun || this.isEndingRun) return;
+    this.grantXp(amount);
   }
 
   private updateTimedChallengeAndPortal(dt: number) {
