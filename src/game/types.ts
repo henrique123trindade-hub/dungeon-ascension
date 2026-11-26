@@ -1,4 +1,4 @@
-export type ClassId = 'warrior' | 'assassin' | 'mage' | 'necromancer' | 'archer';
+export type ClassId = 'warrior' | 'assassin' | 'mage' | 'necromancer' | 'archer' | 'slatt';
 
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' | 'mythic';
 
@@ -10,6 +10,7 @@ export type ActiveModalType =
   | 'sanctuary'
   | 'codex'
   | 'settings'
+  | 'redeemCode'
   | 'levelUp'
   | 'character'
   | 'event';
@@ -29,7 +30,12 @@ export type SkillId =
   | 'black_hole'
   | 'life_drain'
   | 'celestial_bolt'
-  | 'demonic_fury';
+  | 'demonic_fury'
+  | 'banana_bomb'
+  | 'banana_peel'
+  | 'primate_fury'
+  | 'banana_rain'
+  | 'primate_instinct';
 
 export type SynergyId =
   | 'fire_tornado'
@@ -84,8 +90,9 @@ export interface ClassDef {
   archetype: string;
   description: string;
   weaponName: string;
-  attackStyle: 'melee_cleave' | 'twin_dagger' | 'arcane_bolt' | 'soul_orb' | 'multi_arrow';
+  attackStyle: 'melee_cleave' | 'twin_dagger' | 'arcane_bolt' | 'soul_orb' | 'multi_arrow' | 'banana_toss';
   accentColor: string;
+  secret?: boolean;
   baseStats: {
     maxHp: number;
     damage: number;
@@ -152,7 +159,8 @@ export interface SkillDef {
   id: SkillId;
   name: string;
   type: 'active' | 'passive';
-  element: 'fire' | 'shadow' | 'lightning' | 'arcane' | 'ice' | 'divine' | 'gravity' | 'blood';
+  element: 'fire' | 'shadow' | 'lightning' | 'arcane' | 'ice' | 'divine' | 'gravity' | 'blood' | 'primate';
+  exclusiveToClass?: ClassId;
   description: string;
   cooldown: number; // seconds (0 for pure passive or tick interval)
   basePower: number; // multiplier of player damage or flat scaling
@@ -302,6 +310,8 @@ export interface SaveData {
   discoveredSynergies: SynergyId[];
   unlockedAchievements: string[];
   claimedAchievements: string[];
+  redeemedCodes: string[];
+  unlockedSecretClasses: ClassId[];
   records: RunRecord[];
   settings: SettingsData;
 }

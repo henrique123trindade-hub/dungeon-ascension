@@ -63,6 +63,7 @@ import {
 import { DungeonController, phaserBridge } from './PhaserBridge';
 import { TargetingRenderer } from './TargetingRenderer';
 import { generateAllGameTextures } from './TextureFactory';
+import { computeCameraZoom } from './viewportCamera';
 
 const HERO_BASE_SCALE = 0.62;
 
@@ -99,6 +100,8 @@ interface EnemyEntity {
   hasAttackToken: boolean;
   flashTimer: number;
   freezeTimer: number;
+  slowTimer: number;
+  slowFactor: number;
   knockVx: number;
   knockVy: number;
   dying: boolean;
@@ -132,6 +135,7 @@ interface ProjectileEntity {
   color: number;
   appliesSlow?: boolean;
   bonusCrit?: number;
+  spinSpeed?: number;
 }
 
 interface ShadowMinion {
@@ -155,10 +159,13 @@ interface GroundHazard {
   fromPlayer: boolean;
   damage: number;
   color: number;
-  kind: 'meteor' | 'boss_aoe' | 'mage_circle' | 'black_hole' | 'fire_tornado';
+  kind: 'meteor' | 'boss_aoe' | 'mage_circle' | 'black_hole' | 'fire_tornado' | 'banana_peel' | 'banana_rain';
   duration: number;
   tickTimer: number;
   triggered: boolean;
+  sprite?: Phaser.GameObjects.Sprite;
+  slowFactor?: number;
+  triggeredEnemies?: Set<number>;
 }
 
 interface PickupEntity {
@@ -258,6 +265,7 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
 
   // Buffs & Floor state
   private furyTimer = 0;
+  private primateFuryTimer = 0;
   private swiftKillTimer = 0;
   private playerSlowTimer = 0;
   private invulnTimer = 0;
@@ -505,7 +513,10 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     window.addEventListener('keydown', this.keyDownHandler);
     window.addEventListener('keyup', this.keyUpHandler);
 
+    this.scale.on(Phaser.Scale.Events.RESIZE, this.handleScaleResize, this);
+
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.scale.off(Phaser.Scale.Events.RESIZE, this.handleScaleResize, this);
       if (this.keyDownHandler) window.removeEventListener('keydown', this.keyDownHandler);
       if (this.keyUpHandler) window.removeEventListener('keyup', this.keyUpHandler);
       if (this.pointerMoveWindowHandler) window.removeEventListener('pointermove', this.pointerMoveWindowHandler);
@@ -514,6 +525,26 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     });
 
     phaserBridge.registerController(this);
+  }
+
+  private handleScaleResize(gameSize: Phaser.Structs.Size) {
+    if (!this.cameras?.main) return;
+    const width = Math.max(320, Math.round(gameSize.width));
+    const height = Math.max(240, Math.round(gameSize.height));
+    this.cameras.main.setViewport(0, 0, width, height);
+    if (this.isActiveRun) {
+      this.syncCameraViewport(width, height);
+    }
+  }
+
+  private syncCameraViewport(viewWidth?: number, viewHeight?: number) {
+    const cam = this.cameras?.main;
+    if (!cam) return;
+    const w = Math.max(320, Math.round(viewWidth ?? this.scale.width));
+    const h = Math.max(240, Math.round(viewHeight ?? this.scale.height));
+    cam.setViewport(0, 0, w, h);
+    cam.setBounds(0, 0, this.roomWidth, this.roomHeight);
+    cam.setZoom(computeCameraZoom(w, h, this.roomWidth, this.roomHeight));
   }
 
   private initPools() {
@@ -658,6 +689,7 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     this.levelUpPendingQueue = 0;
     this.postModalClickSuppressTimer = 0;
     this.furyTimer = 0;
+    this.primateFuryTimer = 0;
     this.swiftKillTimer = 0;
     this.playerSlowTimer = 0;
     this.invulnTimer = 0.6;
@@ -765,6 +797,7 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
       activeSynergies: this.activeSynergies,
       skills: this.skills,
       furyActive: this.furyTimer > 0,
+      primateFuryActive: this.primateFuryTimer > 0,
     });
     if (healFull) {
       this.hp = this.computedStats.maxHp;
@@ -813,6 +846,9 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     }
     this.minions = [];
 
+    for (const h of this.hazards) {
+      h.sprite?.destroy();
+    }
     this.hazards = [];
 
     for (const pk of this.pickups) {
@@ -872,8 +908,7 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
       layout.roomWidth - layout.tileSize * 2,
       layout.roomHeight - layout.tileSize * 2
     );
-    this.cameras.main.setBounds(0, 0, layout.roomWidth, layout.roomHeight);
-    this.cameras.main.setZoom(1.12);
+    this.syncCameraViewport();
 
     // Build tiled stone floor (3 handcrafted variations) & perimeter gothic walls
     this.tileGroup = this.add.group();
@@ -1243,6 +1278,8 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
       hasAttackToken: false,
       flashTimer: 0,
       freezeTimer: 0,
+      slowTimer: 0,
+      slowFactor: 1,
       knockVx: 0,
       knockVy: 0,
       dying: false,
@@ -1318,6 +1355,8 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
       hasAttackToken: false,
       flashTimer: 0,
       freezeTimer: 0,
+      slowTimer: 0,
+      slowFactor: 1,
       knockVx: 0,
       knockVy: 0,
       dying: false,
@@ -1437,6 +1476,25 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     if (this.furyTimer > 0) {
       this.furyTimer = Math.max(0, this.furyTimer - dt);
       if (prevFury && this.furyTimer <= 0) {
+        this.recomputeStats(false);
+      }
+    }
+
+    const prevPrimateFury = this.primateFuryTimer > 0;
+    if (this.primateFuryTimer > 0) {
+      this.primateFuryTimer = Math.max(0, this.primateFuryTimer - dt);
+      if (Math.random() < 0.35 && this.settings.graphicsQuality !== 'low') {
+        this.spawnParticle(
+          this.player.x + (Math.random() - 0.5) * 26,
+          this.player.y + (Math.random() - 0.5) * 22,
+          (Math.random() - 0.5) * 32,
+          -34 - Math.random() * 28,
+          0xfacc15,
+          0.28,
+          0.62
+        );
+      }
+      if (prevPrimateFury && this.primateFuryTimer <= 0) {
         this.recomputeStats(false);
       }
     }
@@ -1590,7 +1648,7 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     }
     if (this.playerShadowGlow) {
       this.playerShadowGlow.setPosition(this.player.x, this.player.y);
-      this.playerShadowGlow.setAlpha(this.furyTimer > 0 ? 0.48 : 0.22);
+      this.playerShadowGlow.setAlpha(this.furyTimer > 0 || this.primateFuryTimer > 0 ? 0.48 : 0.22);
     }
     if (this.playerShieldRing) {
       this.playerShieldRing.setPosition(this.player.x, this.player.y);
@@ -1768,15 +1826,24 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
           ? 'proj_arcane'
           : basicSpec.style === 'soul_orb'
             ? 'proj_soul'
-            : 'proj_arrow';
+            : basicSpec.style === 'banana_toss'
+              ? 'proj_banana'
+              : 'proj_arrow';
 
     audioEngine.playAttack(
-      basicSpec.style === 'twin_dagger' ? 'dagger' : basicSpec.style === 'multi_arrow' ? 'bow' : 'arcane'
+      basicSpec.style === 'twin_dagger'
+        ? 'dagger'
+        : basicSpec.style === 'multi_arrow'
+          ? 'bow'
+          : basicSpec.style === 'banana_toss'
+            ? 'banana'
+            : 'arcane'
     );
 
     const speed = basicSpec.speed;
     const life = basicSpec.life;
     const spread = basicSpec.spread;
+    const spinSpeed = basicSpec.style === 'banana_toss' ? 14 : 0;
 
     for (let i = 0; i < projCount; i++) {
       const offset = projCount === 1 ? 0 : -spread / 2 + (spread / (projCount - 1)) * i;
@@ -1790,8 +1857,46 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
         life,
         basicSpec.pierce,
         basicSpec.explosiveRadius,
-        basicSpec.accentColor
+        basicSpec.accentColor,
+        0,
+        spinSpeed
       );
+    }
+
+    // Slatt Passive: Instinto Primata — chance on every basic attack to hurl extra spinning banana(s)
+    const instinctLv = this.skills.primate_instinct ?? 0;
+    if (instinctLv > 0) {
+      const procChance = Math.min(0.62, 0.24 + (instinctLv - 1) * 0.04);
+      if (Math.random() < procChance) {
+        const extraOffsets = instinctLv >= 4 ? [-0.14, 0.14] : [(Math.random() < 0.5 ? -1 : 1) * 0.09];
+        const extraPierce = basicSpec.pierce + (instinctLv >= 7 ? 1 : 0);
+        const extraCrit = instinctLv >= 7 ? 0.25 : 0;
+        const extraDmg = this.computedStats.damage * (0.85 + Math.min(0.35, (instinctLv - 1) * 0.05));
+        for (const off of extraOffsets) {
+          this.spawnPlayerProjectile(
+            angle + off,
+            'proj_banana',
+            Math.max(speed, 590),
+            extraDmg,
+            life,
+            extraPierce,
+            basicSpec.explosiveRadius,
+            0xfacc15,
+            extraCrit,
+            16
+          );
+        }
+        if (this.settings.graphicsQuality !== 'low') {
+          this.spawnHitSparks(
+            this.player.x + Math.cos(angle) * 18,
+            this.player.y + Math.sin(angle) * 18,
+            angle,
+            0xfef08a,
+            3,
+            115
+          );
+        }
+      }
     }
   }
 
@@ -1804,7 +1909,8 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     pierceLeft: number,
     explosiveRadius: number,
     color: number,
-    bonusCrit = 0
+    bonusCrit = 0,
+    spinSpeed = 0
   ) {
     const sp = this.physics.add
       .sprite(this.player.x + Math.cos(angle) * 20, this.player.y + Math.sin(angle) * 20, texture)
@@ -1822,6 +1928,7 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
       explosiveRadius,
       color,
       bonusCrit,
+      spinSpeed,
     });
   }
 
@@ -1899,7 +2006,16 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     const powerScale = def.basePower * (1 + (lv - 1) * BALANCE_CONFIG.skills.perLevelScaling);
     const baseDmg = this.computedStats.damage * powerScale;
 
-    audioEngine.playSkill(def.element);
+    if (
+      skillId === 'banana_bomb' ||
+      skillId === 'banana_peel' ||
+      skillId === 'primate_fury' ||
+      skillId === 'banana_rain'
+    ) {
+      audioEngine.playSlattSkill(skillId);
+    } else {
+      audioEngine.playSkill(def.element);
+    }
 
     switch (skillId) {
       case 'fireball': {
@@ -2082,6 +2198,134 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
         this.shakeTrauma = Math.max(this.shakeTrauma, 0.3);
         this.spawnBurst(this.player.x, this.player.y, spec.color, 18, 160);
         this.pushNotice('FÚRIA DEMONÍACA ATIVADA!', 'crimson');
+        break;
+      }
+      case 'banana_bomb': {
+        for (const offset of spec.rayAngles) {
+          this.spawnPlayerProjectile(
+            aim + offset,
+            'proj_banana_bomb',
+            spec.speed,
+            baseDmg,
+            spec.life,
+            spec.pierce,
+            spec.explosiveRadius,
+            spec.color,
+            lv >= 7 ? 0.35 : 0,
+            16
+          );
+        }
+        break;
+      }
+      case 'banana_peel': {
+        const zoneX = evalCast.targetPoint.x;
+        const zoneY = evalCast.targetPoint.y;
+        const peelDuration = lv >= 4 ? 11.0 : 8.5;
+        const slowFactor = lv >= 7 ? 0.35 : 0.48;
+        const scatterRadius = Math.max(22, spec.radius * 0.62);
+
+        for (let i = 0; i < spec.count; i++) {
+          const ang = (Math.PI * 2 * i) / Math.max(1, spec.count) + Math.random() * 0.45;
+          const dist = i === 0 ? Math.min(18, scatterRadius * 0.3) : scatterRadius * (0.45 + Math.random() * 0.55);
+          const px = Phaser.Math.Clamp(zoneX + Math.cos(ang) * dist, 82, this.roomWidth - 82);
+          const py = Phaser.Math.Clamp(zoneY + Math.sin(ang) * dist, 82, this.roomHeight - 82);
+
+          const peelSprite = this.add
+            .sprite(px, py - 14, 'fx_banana_peel')
+            .setDepth(16)
+            .setScale(0.25)
+            .setRotation((Math.random() - 0.5) * 0.5);
+          this.tweens.add({
+            targets: peelSprite,
+            y: py,
+            scale: 0.95,
+            duration: 180 + i * 35,
+            ease: 'Back.Out',
+          });
+
+          this.hazards.push({
+            x: px,
+            y: py,
+            radius: spec.subRadius,
+            delay: 0,
+            maxDelay: 0.1,
+            fromPlayer: true,
+            damage: baseDmg,
+            color: spec.color,
+            kind: 'banana_peel',
+            duration: peelDuration,
+            tickTimer: 0.1,
+            triggered: true,
+            sprite: peelSprite,
+            slowFactor,
+            triggeredEnemies: new Set<number>(),
+          });
+        }
+        break;
+      }
+      case 'primate_fury': {
+        this.primateFuryTimer = lv >= 7 ? 8.0 : lv >= 4 ? 6.5 : 5.0;
+        this.recomputeStats(false);
+        this.shakeTrauma = Math.max(this.shakeTrauma, 0.28);
+        this.spawnBurst(this.player.x, this.player.y, 0xfacc15, 22, 175);
+        this.pushNotice('FÚRIA PRIMATA ATIVADA!', 'gold');
+        break;
+      }
+      case 'banana_rain': {
+        const zoneX = evalCast.targetPoint.x;
+        const zoneY = evalCast.targetPoint.y;
+        const inZone = this.enemies.filter(
+          (e) => !e.dying && Phaser.Math.Distance.Between(zoneX, zoneY, e.sprite.x, e.sprite.y) <= spec.radius + e.radius
+        );
+        for (let i = 0; i < spec.count; i++) {
+          let tx: number;
+          let ty: number;
+          if (inZone.length > 0 && i < inZone.length * 2) {
+            const target = inZone[i % inZone.length];
+            tx = target.sprite.x + (Math.random() - 0.5) * 30;
+            ty = target.sprite.y + (Math.random() - 0.5) * 30;
+          } else {
+            const ang = (Math.PI * 2 * i) / Math.max(1, spec.count) + Math.random() * 0.55;
+            const dist = Math.random() * Math.max(24, spec.radius - spec.subRadius * 0.45);
+            tx = zoneX + Math.cos(ang) * dist;
+            ty = zoneY + Math.sin(ang) * dist;
+          }
+          tx = Phaser.Math.Clamp(tx, 76, this.roomWidth - 76);
+          ty = Phaser.Math.Clamp(ty, 76, this.roomHeight - 76);
+          const delay = 0.34 + i * 0.085;
+
+          const fallingSprite = this.add
+            .sprite(tx, ty - 240, 'proj_banana_bomb')
+            .setDepth(68)
+            .setScale(1.08)
+            .setAlpha(0.95);
+          this.tweens.add({
+            targets: fallingSprite,
+            y: ty,
+            rotation: Math.PI * 3.5,
+            duration: Math.max(120, Math.round(delay * 1000)),
+            ease: 'Quad.In',
+            onComplete: () => {
+              if (fallingSprite.active) fallingSprite.destroy();
+            },
+          });
+
+          this.hazards.push({
+            x: tx,
+            y: ty,
+            radius: spec.subRadius,
+            delay,
+            maxDelay: delay,
+            fromPlayer: true,
+            damage: baseDmg,
+            color: spec.color,
+            kind: 'banana_rain',
+            duration: 0,
+            tickTimer: 0,
+            triggered: false,
+            sprite: fallingSprite,
+          });
+        }
         break;
       }
     }
@@ -2429,8 +2673,20 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
       if (e.attackCooldown > 0) e.attackCooldown -= dt;
       e.aiTimer -= dt;
 
+      if (e.slowTimer > 0) {
+        e.slowTimer = Math.max(0, e.slowTimer - dt);
+        if (e.flashTimer <= 0) {
+          e.sprite.setTint(0xfde047);
+        }
+        if (e.slowTimer <= 0) {
+          e.slowFactor = 1;
+          if (e.flashTimer <= 0) e.sprite.clearTint();
+        }
+      }
+
       const berserkMult = e.eliteMod === 'berserker' && e.hp < e.maxHp * 0.5 ? 1.42 : 1;
-      const moveSpeed = e.speed * berserkMult;
+      const slowMult = e.slowTimer > 0 ? e.slowFactor : 1;
+      const moveSpeed = e.speed * berserkMult * slowMult;
 
       // Post-charge boss recovery punish window (skids & pants briefly so dodging feels rewarding)
       if (e.recoveryTimer > 0) {
@@ -2999,12 +3255,20 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
       p.life -= dt;
       p.sprite.x += p.vx * dt;
       p.sprite.y += p.vy * dt;
+      if (p.spinSpeed) {
+        p.sprite.rotation += p.spinSpeed * dt;
+      }
 
       // Subtle lightweight projectile trails on magic/heavy orbs
       if (this.settings.graphicsQuality !== 'low') {
         const key = p.sprite.texture.key;
         if (
-          (key === 'proj_fireball' || key === 'proj_shadow_wave' || key === 'proj_boss_orb' || key === 'proj_arcane') &&
+          (key === 'proj_fireball' ||
+            key === 'proj_shadow_wave' ||
+            key === 'proj_boss_orb' ||
+            key === 'proj_arcane' ||
+            key === 'proj_banana' ||
+            key === 'proj_banana_bomb') &&
           Math.random() < (this.settings.graphicsQuality === 'high' ? 0.55 : 0.28)
         ) {
           this.spawnParticle(
@@ -3133,8 +3397,13 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
         if (h.delay <= 0) {
           h.triggered = true;
           if (h.fromPlayer) {
+            if (h.kind === 'banana_rain') {
+              h.sprite?.destroy();
+              h.sprite = undefined;
+              audioEngine.playSlattSkill('banana_bomb');
+            }
             this.triggerRadialAoE(h.x, h.y, h.radius, h.damage, h.color, 0);
-            this.shakeTrauma = Math.max(this.shakeTrauma, 0.25);
+            this.shakeTrauma = Math.max(this.shakeTrauma, h.kind === 'banana_rain' ? 0.18 : 0.25);
           } else {
             this.spawnBurst(h.x, h.y, h.color, 18, 160);
             if (Phaser.Math.Distance.Between(h.x, h.y, this.player.x, this.player.y) <= h.radius + 14) {
@@ -3142,11 +3411,12 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
             }
           }
           if (h.duration <= 0) {
+            h.sprite?.destroy();
             this.hazards.splice(i, 1);
           }
         }
       } else {
-        // Ongoing hazard (Black Hole / Fire Tornado)
+        // Ongoing hazard (Black Hole / Fire Tornado / Banana Peel)
         h.duration -= dt;
         h.tickTimer -= dt;
 
@@ -3168,14 +3438,33 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
             h.x += Math.cos(ang) * 145 * dt;
             h.y += Math.sin(ang) * 145 * dt;
           }
+        } else if (h.kind === 'banana_peel') {
+          if (h.sprite && h.duration < 1.2) {
+            h.sprite.setAlpha(Math.max(0.25, h.duration / 1.2));
+          }
         }
 
         if (h.tickTimer <= 0) {
-          h.tickTimer = 0.28;
+          h.tickTimer = h.kind === 'banana_peel' ? 0.26 : 0.28;
           for (const e of this.enemies) {
             if (e.dying) continue;
             if (Phaser.Math.Distance.Between(e.sprite.x, e.sprite.y, h.x, h.y) <= h.radius + e.radius) {
-              this.damageEnemy(e, h.damage * 0.42, 0, false);
+              if (h.kind === 'banana_peel') {
+                const factor = e.bossDef ? Math.max(0.62, h.slowFactor ?? 0.48) : (h.slowFactor ?? 0.48);
+                e.slowTimer = Math.max(e.slowTimer, 1.45);
+                e.slowFactor = Math.min(e.slowFactor, factor);
+                const firstSlip = !h.triggeredEnemies?.has(e.id);
+                if (firstSlip) {
+                  h.triggeredEnemies?.add(e.id);
+                  this.damageEnemy(e, h.damage * 0.55, 0, false);
+                  this.spawnBurst(e.sprite.x, e.sprite.y + 8, 0xfde047, 7, 95);
+                  audioEngine.playSlattSkill('peel_slip');
+                } else {
+                  this.damageEnemy(e, h.damage * 0.2, 0, false);
+                }
+              } else {
+                this.damageEnemy(e, h.damage * 0.42, 0, false);
+              }
             }
           }
         }
@@ -3197,6 +3486,7 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
               this.shakeTrauma = Math.max(this.shakeTrauma, isSupernova ? 0.55 : 0.35);
             }
           }
+          h.sprite?.destroy();
           this.hazards.splice(i, 1);
         }
       }
@@ -3732,6 +4022,7 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
       luck: this.computedStats.luck,
       currentSkills: this.skills,
       playerLevel: choiceLevel,
+      classId: this.classId,
     });
     const highest = options.reduce((acc, o) => {
       const rank = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'];
@@ -4269,6 +4560,12 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
         g.lineStyle(3, 0xfacc15, 0.88);
         g.fillCircle(h.x, h.y, h.radius * 0.75);
         g.strokeCircle(h.x, h.y, h.radius);
+      } else if (h.kind === 'banana_peel') {
+        const pulseAlpha = h.duration < 1.2 ? Math.max(0.12, h.duration * 0.25) : 0.32;
+        g.fillStyle(0xfde047, 0.08);
+        g.lineStyle(1.4, 0xfde047, pulseAlpha);
+        g.fillCircle(h.x, h.y, h.radius);
+        g.strokeCircle(h.x, h.y, h.radius);
       }
     }
   }
@@ -4474,6 +4771,7 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
 
     const activeBuffs: Array<{ label: string; remainingSec: number; color: string }> = [];
     if (this.furyTimer > 0) activeBuffs.push({ label: 'Fúria Demoníaca', remainingSec: this.furyTimer, color: '#dc2626' });
+    if (this.primateFuryTimer > 0) activeBuffs.push({ label: 'Fúria Primata', remainingSec: this.primateFuryTimer, color: '#f59e0b' });
     if (this.swiftKillTimer > 0) activeBuffs.push({ label: 'Ímpeto', remainingSec: this.swiftKillTimer, color: '#38bdf8' });
     if (this.playerSlowTimer > 0) activeBuffs.push({ label: 'Congelado', remainingSec: this.playerSlowTimer, color: '#22d3ee' });
 

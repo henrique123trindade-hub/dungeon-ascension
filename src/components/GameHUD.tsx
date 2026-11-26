@@ -429,45 +429,57 @@ export function GameHUD({
           onPointerDown={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
           onTouchStart={(e) => e.stopPropagation()}
-          className="relative z-30 pointer-events-auto cursor-default flex items-center gap-1.5 pt-2 px-1 pb-1 -mx-1 -mb-1"
+          className="relative z-30 pointer-events-auto cursor-default flex items-center gap-2.5 pt-2.5 px-1 pb-1 -mx-1 -mb-1"
         >
           <UtilityBtn
             label="Inventário (I)"
+            tooltipTitle="Inventário"
             hotkey="I"
             badge={hud.inventory.length > 0 ? hud.inventory.length : undefined}
             onClick={() => onOpenCharacterTab('inventory')}
           >
-            <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <svg viewBox="0 0 24 24" className="w-[21px] h-[21px]" fill="none" stroke="currentColor" strokeWidth="1.85">
               <path d="M5 8h14l-1 12H6L5 8zm4 0V6a3 3 0 016 0v2" />
             </svg>
           </UtilityBtn>
-          <UtilityBtn label="Habilidades e Sinergias (K)" hotkey="K" onClick={() => onOpenCharacterTab('skills')}>
-            <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <UtilityBtn
+            label="Habilidades e Sinergias (K)"
+            tooltipTitle="Habilidades e Sinergias"
+            hotkey="K"
+            onClick={() => onOpenCharacterTab('skills')}
+          >
+            <svg viewBox="0 0 24 24" className="w-[21px] h-[21px]" fill="none" stroke="currentColor" strokeWidth="1.85">
               <path d="M13 2L4.5 13.5H11L10 22l9.5-11.5H13V2z" />
             </svg>
           </UtilityBtn>
-          <UtilityBtn label="Atributos (C)" hotkey="C" onClick={() => onOpenCharacterTab('stats')}>
-            <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <UtilityBtn
+            label="Atributos (C)"
+            tooltipTitle="Atributos"
+            hotkey="C"
+            onClick={() => onOpenCharacterTab('stats')}
+          >
+            <svg viewBox="0 0 24 24" className="w-[21px] h-[21px]" fill="none" stroke="currentColor" strokeWidth="1.85">
               <path d="M12 12a4 4 0 100-8 4 4 0 000 8zm-7 8a7 7 0 0114 0" />
             </svg>
           </UtilityBtn>
           <UtilityBtn
             label={settings.muted ? 'Ativar som (M)' : 'Silenciar som (M)'}
+            tooltipTitle={settings.muted ? 'Ativar som' : 'Silenciar som'}
             hotkey="M"
             onClick={onToggleMute}
           >
             {settings.muted ? (
-              <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <svg viewBox="0 0 24 24" className="w-[21px] h-[21px]" fill="none" stroke="currentColor" strokeWidth="1.85">
                 <path d="M11 5L6 9H3v6h3l5 4V5zm5 4l5 6m0-6l-5 6" />
               </svg>
             ) : (
-              <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <svg viewBox="0 0 24 24" className="w-[21px] h-[21px]" fill="none" stroke="currentColor" strokeWidth="1.85">
                 <path d="M11 5L6 9H3v6h3l5 4V5zm4.5 3.5a5 5 0 010 7m3-9.5a8.5 8.5 0 010 12" />
               </svg>
             )}
           </UtilityBtn>
-          <UtilityBtn label="Pausar (Esc)" hotkey="Esc" onClick={onOpenPause}>
-            <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <UtilityBtn label="Pausar (Esc)" tooltipTitle="Pausar jogo" hotkey="Esc" onClick={onOpenPause}>
+            <svg viewBox="0 0 24 24" className="w-[21px] h-[21px]" fill="none" stroke="currentColor" strokeWidth="1.85">
               <path d="M8 5h3v14H8zm5 0h3v14h-3z" />
             </svg>
           </UtilityBtn>
@@ -650,44 +662,62 @@ function CornerNotches({ gold = false }: { gold?: boolean }) {
 
 function UtilityBtn({
   label,
+  tooltipTitle,
   hotkey,
   badge,
   onClick,
   children,
 }: {
   label: string;
+  tooltipTitle: string;
   hotkey: string;
   badge?: number;
   onClick: () => void;
   children: React.ReactNode;
 }) {
+  const displayKey = hotkey === 'Esc' ? 'ESC' : hotkey;
+
   return (
-    <button
-      type="button"
-      tabIndex={-1}
-      data-hud-surface="true"
-      aria-label={label}
-      title={label}
-      onPointerDown={(e) => e.stopPropagation()}
-      onMouseDown={(e) => e.stopPropagation()}
-      onTouchStart={(e) => e.stopPropagation()}
-      onClick={(e) => {
-        e.stopPropagation();
-        e.currentTarget.blur();
-        onClick();
-      }}
-      className="relative w-9 h-9 bg-[#121018]/94 border border-[#d4a64a]/38 hover:border-[#f8e3a8] hover:bg-[#1e1a29] text-[#e8e3d9] flex items-center justify-center transition-colors cursor-pointer pointer-events-auto"
-    >
-      <span className="pointer-events-none flex items-center justify-center">{children}</span>
-      <span className="pointer-events-none absolute bottom-0.5 right-0.5 font-mono-num text-[8px] text-[#9c9487] leading-none">
-        {hotkey === 'Esc' ? 'ESC' : hotkey}
-      </span>
-      {badge !== undefined && (
-        <span className="pointer-events-none absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 bg-[#b83232] border border-[#f8e3a8]/40 text-[10px] font-mono-num font-bold text-white flex items-center justify-center">
-          {badge}
+    <div className="group relative">
+      <button
+        type="button"
+        tabIndex={-1}
+        data-hud-surface="true"
+        aria-label={label}
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          e.currentTarget.blur();
+          onClick();
+        }}
+        className="relative w-12 h-12 bg-[#121018]/94 border border-[#d4a64a]/45 hover:border-[#f8e3a8] hover:bg-[#211c2d] hover:-translate-y-0.5 active:translate-y-0 text-[#e8e3d9] hover:text-[#faf5eb] shadow-[0_6px_14px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(248,227,168,0.12)] hover:shadow-[0_8px_18px_rgba(0,0,0,0.75),inset_0_0_12px_rgba(212,166,74,0.16)] flex items-center justify-center transition-all duration-150 cursor-pointer pointer-events-auto"
+      >
+        <span className="pointer-events-none flex items-center justify-center -translate-y-1 transition-transform duration-150 group-hover:scale-105">
+          {children}
         </span>
-      )}
-    </button>
+        <span className="pointer-events-none absolute bottom-1 right-1 px-1 py-[1px] bg-[#09080c]/92 border border-[#d4a64a]/35 group-hover:border-[#f8e3a8]/70 font-mono-num text-[10px] font-bold text-[#e7d8b5] group-hover:text-[#faf5eb] leading-none tracking-tight transition-colors">
+          {displayKey}
+        </span>
+        {badge !== undefined && (
+          <span className="pointer-events-none absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 bg-[#b83232] border border-[#f8e3a8]/55 text-[10px] font-mono-num font-bold text-white flex items-center justify-center shadow-sm">
+            {badge}
+          </span>
+        )}
+      </button>
+
+      {/* Dark-fantasy hover tooltip (right-aligned so it never clips off the right viewport edge) */}
+      <div
+        role="tooltip"
+        className="pointer-events-none absolute right-0 top-full mt-2 z-40 whitespace-nowrap opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-150 hud-iron-frame px-2.5 py-1.5 flex items-center gap-2"
+      >
+        <span className="text-xs font-medium text-[#f4efe6] tracking-wide">{tooltipTitle}</span>
+        <span className="font-mono-num text-[10px] font-bold text-[#f8e3a8] bg-[#0b0a0f] border border-[#d4a64a]/45 px-1.5 py-0.5 leading-none">
+          {displayKey}
+        </span>
+      </div>
+    </div>
   );
 }
 

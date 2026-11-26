@@ -226,6 +226,40 @@ body[data-reticle='true'] [data-testid='phaser-canvas-container'] canvas {
   animation: modalExitFade 300ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
+@keyframes secretUnlockBurst {
+  0% {
+    opacity: 0;
+    transform: scale(0.86) translateY(10px);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.015) translateY(-1px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-secret-unlock {
+  animation: secretUnlockBurst 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes secretSealRing {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.55);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.65);
+  }
+}
+
+.animate-secret-ring {
+  animation: secretSealRing 900ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-rarity-burst,
   .animate-modal-enter,
@@ -234,7 +268,9 @@ body[data-reticle='true'] [data-testid='phaser-canvas-container'] canvas {
   .animate-levelup-flare,
   .animate-levelup-card-in,
   .animate-card-chosen,
-  .animate-modal-exit {
+  .animate-modal-exit,
+  .animate-secret-unlock,
+  .animate-secret-ring {
     animation: none;
   }
 }

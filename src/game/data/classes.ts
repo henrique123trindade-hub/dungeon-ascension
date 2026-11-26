@@ -276,6 +276,62 @@ export const CLASSES: Record<ClassId, ClassDef> = {
       },
     ],
   },
+  slatt: {
+    id: 'slatt',
+    name: 'Slatt',
+    archetype: 'Primata Caótico · Bananas & Mobilidade',
+    description:
+      'Um macaco fora-da-lei das profundezas que arremessa bananas giratórias, espalha cascas traiçoeiras, entra em Fúria Primata e bombardeia o campo com chuvas explosivas.',
+    weaponName: 'Cacho do Eclipse',
+    attackStyle: 'banana_toss',
+    accentColor: '#eab308',
+    secret: true,
+    baseStats: {
+      maxHp: 102,
+      damage: 16,
+      attackSpeed: 1.85,
+      moveSpeed: 242,
+      critChance: 0.16,
+      critDamage: 1.82,
+      armor: 8,
+      dodge: 0.11,
+      range: 345,
+      projectiles: 1,
+    },
+    startingSkills: ['banana_bomb', 'banana_peel', 'primate_fury', 'banana_rain', 'primate_instinct'],
+    evolutions: [
+      {
+        level: 25,
+        title: 'Primata das Sombras',
+        bonusDesc: '+28% Dano, +22% Vel. Ataque, +20 Velocidade',
+        damageMult: 1.28,
+        hpMult: 1.22,
+        speedBonus: 20,
+        critChanceBonus: 0.08,
+        attackSpeedBonus: 0.22,
+      },
+      {
+        level: 50,
+        title: 'Rei da Selva Abissal',
+        bonusDesc: '+74% Dano, +36% Vel. Ataque, +15% Crítico',
+        damageMult: 1.74,
+        hpMult: 1.5,
+        speedBonus: 32,
+        critChanceBonus: 0.15,
+        attackSpeedBonus: 0.36,
+      },
+      {
+        level: 100,
+        title: 'Divindade Primata',
+        bonusDesc: '+175% Dano, +54% Vel. Ataque, +24% Crítico',
+        damageMult: 2.75,
+        hpMult: 1.95,
+        speedBonus: 46,
+        critChanceBonus: 0.24,
+        attackSpeedBonus: 0.54,
+      },
+    ],
+  },
 };
 
 export const CLASS_LIST: ClassDef[] = [
@@ -284,7 +340,12 @@ export const CLASS_LIST: ClassDef[] = [
   CLASSES.mage,
   CLASSES.necromancer,
   CLASSES.archer,
+  CLASSES.slatt,
 ];
+
+export function getVisibleClasses(unlockedSecretClasses: ReadonlyArray<ClassId>): ClassDef[] {
+  return CLASS_LIST.filter((cls) => !cls.secret || unlockedSecretClasses.includes(cls.id));
+}
 
 export function getClassEvolution(classId: ClassId, level: number) {
   const cls = CLASSES[classId];

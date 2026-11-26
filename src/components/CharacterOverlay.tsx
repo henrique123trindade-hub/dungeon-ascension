@@ -323,7 +323,9 @@ export function CharacterOverlay({ hud, initialTab, onClose }: CharacterOverlayP
                   Árvore e Evoluções de Habilidades
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {SKILL_LIST.map((sk) => {
+                  {SKILL_LIST.filter(
+                    (sk) => !sk.exclusiveToClass || sk.exclusiveToClass === hud.classId
+                  ).map((sk) => {
                     const lv = hud.skills[sk.id] ?? 0;
                     const tier = getSkillEvolutionTier(sk.id, Math.max(1, lv));
                     return (

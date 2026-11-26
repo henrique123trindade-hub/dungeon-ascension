@@ -1,10 +1,11 @@
-import { CLASS_LIST, CLASSES } from '../game/data/classes';
+import { CLASSES, getVisibleClasses } from '../game/data/classes';
 import { SKILLS } from '../game/data/skills';
 import type { ClassId } from '../game/types';
 import { ClassIcon, SkillIcon } from './Icons';
 
 interface ClassSelectModalProps {
   selectedClass: ClassId;
+  unlockedSecretClasses: ClassId[];
   onSelectClass: (id: ClassId) => void;
   onStartWithClass: (id: ClassId) => void;
   onClose: () => void;
@@ -12,11 +13,14 @@ interface ClassSelectModalProps {
 
 export function ClassSelectModal({
   selectedClass,
+  unlockedSecretClasses,
   onSelectClass,
   onStartWithClass,
   onClose,
 }: ClassSelectModalProps) {
-  const active = CLASSES[selectedClass];
+  const visibleClasses = getVisibleClasses(unlockedSecretClasses);
+  const active =
+    visibleClasses.find((cls) => cls.id === selectedClass) ?? visibleClasses[0] ?? CLASSES.warrior;
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 p-4 sm:p-6">
@@ -48,12 +52,13 @@ export function ClassSelectModal({
         <div className="flex-1 overflow-y-auto custom-scroll p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Class selector column */}
           <div className="lg:col-span-5 flex flex-col gap-2.5">
-            {CLASS_LIST.map((cls) => {
-              const isSelected = cls.id === selectedClass;
+            {visibleClasses.map((cls) => {
+              const isSelected = cls.id === active.id;
               return (
                 <button
                   key={cls.id}
                   type="button"
+                  data-testid={`class-option-${cls.id}`}
                   onClick={() => onSelectClass(cls.id)}
                   className={`w-full text-left p-4 border transition-colors cursor-pointer flex items-center gap-4 ${
                     isSelected
@@ -69,7 +74,14 @@ export function ClassSelectModal({
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline justify-between gap-2">
-                      <span className="font-display font-bold text-base text-[#f4efe6]">{cls.name}</span>
+                      <span className="font-display font-bold text-base text-[#f4efe6] flex items-center gap-2">
+                        <span>{cls.name}</span>
+                        {cls.secret && (
+                          <span className="text-[10px] font-mono-num uppercase tracking-wider text-[#f59e0b] border border-[#f59e0b]/45 bg-[#231b11] px-1.5 py-0.5">
+                            Secreta
+                          </span>
+                        )}
+                      </span>
                       <span className="text-xs text-[#9c9487] truncate">{cls.weaponName}</span>
                     </div>
                     <p className="text-xs text-[#9c9487] mt-0.5">{cls.archetype}</p>
@@ -119,8 +131,14 @@ export function ClassSelectModal({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {active.startingSkills.map((sid) => {
                     const sk = SKILLS[sid];
+                    const spanFull = active.startingSkills.length % 2 === 1 && sk.type === 'passive';
                     return (
-                      <div key={sid} className="p-3 bg-[#17151f] border border-white/10 flex items-start gap-3">
+                      <div
+                        key={sid}
+                        className={`p-3 bg-[#17151f] border border-white/10 flex items-start gap-3 ${
+                          spanFull ? 'sm:col-span-2' : ''
+                        }`}
+                      >
                         <span className="mt-0.5 shrink-0" style={{ color: sk.color }}>
                           <SkillIcon skillId={sid} className="w-5 h-5" />
                         </span>

@@ -66,7 +66,7 @@ class AudioEngine {
     osc.stop(now + opts.duration + 0.02);
   }
 
-  public playAttack(style: 'melee' | 'dagger' | 'arcane' | 'bow') {
+  public playAttack(style: 'melee' | 'dagger' | 'arcane' | 'bow' | 'banana') {
     if (style === 'melee') {
       this.playTone({
         type: 'sawtooth',
@@ -90,6 +90,23 @@ class AudioEngine {
         freqEnd: 165,
         duration: 0.09,
         gain: 0.12,
+      });
+    } else if (style === 'banana') {
+      // Crisp spinning boomerang-like banana toss whoosh
+      this.playTone({
+        type: 'sine',
+        freqStart: this.pitchJitter(340),
+        freqEnd: 610,
+        duration: 0.065,
+        gain: 0.11,
+      });
+      this.playTone({
+        type: 'triangle',
+        freqStart: this.pitchJitter(590),
+        freqEnd: 290,
+        duration: 0.08,
+        gain: 0.09,
+        delay: 0.03,
       });
     } else {
       this.playTone({
@@ -171,10 +188,50 @@ class AudioEngine {
       case 'gravity':
         this.playTone({ type: 'sine', freqStart: 95, freqEnd: 46, duration: 0.35, gain: 0.22 });
         break;
+      case 'primate':
+        this.playTone({ type: 'triangle', freqStart: 320, freqEnd: 560, duration: 0.12, gain: 0.15 });
+        this.playTone({ type: 'sine', freqStart: 560, freqEnd: 260, duration: 0.14, gain: 0.13, delay: 0.07 });
+        break;
       default:
         this.playTone({ type: 'triangle', freqStart: 460, freqEnd: 180, duration: 0.2, gain: 0.17 });
         break;
     }
+  }
+
+  public playSlattSkill(kind: 'banana_bomb' | 'banana_peel' | 'primate_fury' | 'banana_rain' | 'peel_slip') {
+    if (kind === 'banana_bomb') {
+      this.playTone({ type: 'sine', freqStart: 360, freqEnd: 720, duration: 0.1, gain: 0.14 });
+      this.playTone({ type: 'sawtooth', freqStart: 220, freqEnd: 68, duration: 0.22, gain: 0.18, delay: 0.06 });
+    } else if (kind === 'banana_peel') {
+      this.playTone({ type: 'triangle', freqStart: 520, freqEnd: 300, duration: 0.09, gain: 0.12 });
+      this.playTone({ type: 'sine', freqStart: 640, freqEnd: 420, duration: 0.08, gain: 0.1, delay: 0.06 });
+    } else if (kind === 'peel_slip') {
+      this.playTone({ type: 'sine', freqStart: 660, freqEnd: 240, duration: 0.12, gain: 0.11 });
+    } else if (kind === 'primate_fury') {
+      // Energetic primal battle-cry triad
+      this.playTone({ type: 'sawtooth', freqStart: 260, freqEnd: 440, duration: 0.14, gain: 0.16 });
+      this.playTone({ type: 'triangle', freqStart: 440, freqEnd: 660, duration: 0.16, gain: 0.16, delay: 0.09 });
+      this.playTone({ type: 'triangle', freqStart: 587, freqEnd: 880, duration: 0.2, gain: 0.15, delay: 0.18 });
+    } else {
+      // Banana rain whistle + barrage
+      this.playTone({ type: 'sine', freqStart: 880, freqEnd: 320, duration: 0.22, gain: 0.14 });
+      this.playTone({ type: 'triangle', freqStart: 620, freqEnd: 240, duration: 0.2, gain: 0.12, delay: 0.1 });
+    }
+  }
+
+  public playSecretUnlock() {
+    const notes = [330, 440, 554, 659, 880, 1108];
+    this.playTone({ type: 'sine', freqStart: 165, freqEnd: 220, duration: 0.65, gain: 0.14 });
+    notes.forEach((n, idx) => {
+      this.playTone({
+        type: idx >= 3 ? 'triangle' : 'sine',
+        freqStart: n,
+        freqEnd: n * 1.02,
+        duration: 0.34,
+        gain: 0.15,
+        delay: idx * 0.07,
+      });
+    });
   }
 
   public playPlayerHurt() {

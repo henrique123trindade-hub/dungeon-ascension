@@ -58,7 +58,7 @@ export type IndicatorShape =
   | 'chain';
 
 export interface BasicAttackSpec {
-  style: 'melee_cleave' | 'twin_dagger' | 'arcane_bolt' | 'soul_orb' | 'multi_arrow';
+  style: 'melee_cleave' | 'twin_dagger' | 'arcane_bolt' | 'soul_orb' | 'multi_arrow' | 'banana_toss';
   shape: 'cone' | 'projectile';
   range: number;
   halfAngle: number; // radians (for cone)
@@ -361,7 +361,9 @@ export function computeBasicAttackSpec(
       ? 660
       : cls.attackStyle === 'twin_dagger'
         ? 590
-        : 510;
+        : cls.attackStyle === 'banana_toss'
+          ? 575
+          : 510;
   const life = Math.max(0.32, stats.range / speed);
   const effectiveRange = PROJECTILE_SPAWN_OFFSET + speed * life;
   const spread = projCount === 1 ? 0 : Math.min(0.45, 0.13 * (projCount - 1));
@@ -606,6 +608,80 @@ export function computeSkillGeometrySpec(
         shape: 'aura',
         radius: Math.round(92 * Math.min(1.3, 0.9 + rangeScale * 0.1)),
         castRange: 92,
+      };
+    }
+
+    case 'banana_bomb': {
+      const count = lv >= 4 ? 3 : 1;
+      const spread = count === 1 ? 0 : 0.3;
+      const rayAngles: number[] = [];
+      for (let i = 0; i < count; i++) {
+        rayAngles.push(count === 1 ? 0 : -spread / 2 + (spread / (count - 1)) * i);
+      }
+      const speed = 490;
+      const life = 1.25 * (1 + Math.max(0, mods.rangePct) * 0.25);
+      const explosiveRadius = Math.round(
+        (lv >= 7 ? 122 : lv >= 4 ? 98 : 78) * (1 + Math.max(0, mods.rangePct) * 0.15)
+      );
+      return {
+        ...base,
+        shape: 'projectile',
+        speed,
+        life,
+        range: PROJECTILE_SPAWN_OFFSET + speed * life,
+        rayAngles,
+        count,
+        pierce: 0,
+        explosiveRadius,
+      };
+    }
+
+    case 'banana_peel': {
+      const count = lv >= 7 ? 7 : lv >= 4 ? 5 : 3;
+      const castRange = Math.round(280 * (1 + Math.max(0, mods.rangePct) * 0.2));
+      const zoneRadius = Math.round((lv >= 7 ? 132 : lv >= 4 ? 112 : 92) * (1 + Math.max(0, mods.rangePct) * 0.12));
+      return {
+        ...base,
+        shape: 'circle',
+        castRange,
+        radius: zoneRadius,
+        subRadius: lv >= 4 ? 36 : 30,
+        count,
+      };
+    }
+
+    case 'primate_fury': {
+      return {
+        ...base,
+        shape: 'aura',
+        radius: Math.round(98 * Math.min(1.3, 0.9 + rangeScale * 0.1)),
+        castRange: 98,
+      };
+    }
+
+    case 'banana_rain': {
+      const count = lv >= 7 ? 12 : lv >= 4 ? 8 : 5;
+      const castRange = Math.round(390 * (1 + Math.max(0, mods.rangePct) * 0.25));
+      const zoneRadius = Math.round(
+        (lv >= 7 ? 205 : lv >= 4 ? 175 : 145) * (1 + Math.max(0, mods.rangePct) * 0.15)
+      );
+      const subRadius = lv >= 4 ? 76 : 62;
+      return {
+        ...base,
+        shape: 'circle',
+        castRange,
+        radius: zoneRadius,
+        subRadius,
+        count,
+      };
+    }
+
+    case 'primate_instinct': {
+      return {
+        ...base,
+        shape: 'aura',
+        radius: 76,
+        castRange: 76,
       };
     }
 

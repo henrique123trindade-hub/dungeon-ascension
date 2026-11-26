@@ -20,11 +20,21 @@ export function PhaserCanvas({ onReady }: PhaserCanvasProps) {
     const el = containerRef.current;
     if (!el) return;
 
+    const getViewportSize = () => {
+      const rect = el.getBoundingClientRect();
+      return {
+        w: Math.max(320, Math.round(rect.width || window.innerWidth)),
+        h: Math.max(240, Math.round(rect.height || window.innerHeight)),
+      };
+    };
+
+    const initial = getViewportSize();
+
     const config: Phaser.Types.Core.GameConfig = {
       type: Phaser.AUTO,
       parent: el,
-      width: el.clientWidth || window.innerWidth,
-      height: el.clientHeight || window.innerHeight,
+      width: initial.w,
+      height: initial.h,
       backgroundColor: '#0b0a0e',
       pixelArt: false,
       antialias: true,
@@ -38,17 +48,34 @@ export function PhaserCanvas({ onReady }: PhaserCanvasProps) {
       },
       scale: {
         mode: Phaser.Scale.RESIZE,
-        autoCenter: Phaser.Scale.CENTER_BOTH,
+        autoCenter: Phaser.Scale.NO_CENTER,
       },
       scene: [DungeonScene],
     };
 
     const game = new Phaser.Game(config);
 
+    const syncCanvasSize = () => {
+      const { w, h } = getViewportSize();
+      if (game.scale.width !== w || game.scale.height !== h) {
+        game.scale.resize(w, h);
+      }
+      const canvas = game.canvas;
+      if (canvas) {
+        canvas.style.margin = '0';
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
+        canvas.style.display = 'block';
+      }
+    };
+
+    const initialRaf = window.requestAnimationFrame(syncCanvasSize);
+
     // Wait briefly for scene registration then signal ready
     const readyCheck = window.setInterval(() => {
       if (phaserBridge.getController()) {
         window.clearInterval(readyCheck);
+        syncCanvasSize();
         onReadyRef.current?.();
       }
     }, 40);
@@ -64,21 +91,20 @@ export function PhaserCanvas({ onReady }: PhaserCanvasProps) {
     };
 
     window.addEventListener('blur', handleBlur);
+    window.addEventListener('resize', syncCanvasSize);
     document.addEventListener('visibilitychange', handleVisibility);
 
-    const resizeObserver = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (!entry) return;
-      const w = Math.max(320, Math.floor(entry.contentRect.width));
-      const h = Math.max(240, Math.floor(entry.contentRect.height));
-      game.scale.resize(w, h);
+    const resizeObserver = new ResizeObserver(() => {
+      syncCanvasSize();
     });
     resizeObserver.observe(el);
 
     return () => {
+      window.cancelAnimationFrame(initialRaf);
       window.clearInterval(readyCheck);
       resizeObserver.disconnect();
       window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('resize', syncCanvasSize);
       document.removeEventListener('visibilitychange', handleVisibility);
       game.destroy(true);
     };
@@ -88,7 +114,7 @@ export function PhaserCanvas({ onReady }: PhaserCanvasProps) {
     <div
       ref={containerRef}
       data-testid="phaser-canvas-container"
-      className="fixed inset-0 w-full h-full bg-[#0b0a0e] overflow-hidden"
+      className="fixed inset-0 w-full h-full bg-[#0b0a0e] overflow-hidden [&>canvas]:block [&>canvas]:w-full [&>canvas]:h-full"
     />
   );
 }

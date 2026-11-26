@@ -120,6 +120,19 @@ export function ClassIcon({ classId, className = 'w-6 h-6' }: { classId: ClassId
           <path d="M5 19L19 5M14 5h5v5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       );
+    case 'slatt':
+      return (
+        <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8">
+          {/* Stylized monkey crest with bandana & ears */}
+          <circle cx="5.5" cy="11" r="2.2" fill="currentColor" fillOpacity="0.2" />
+          <circle cx="18.5" cy="11" r="2.2" fill="currentColor" fillOpacity="0.2" />
+          <circle cx="12" cy="12.5" r="6.2" fill="currentColor" fillOpacity="0.22" />
+          <path d="M6.5 9.2h11" strokeWidth="2.2" strokeLinecap="round" />
+          <circle cx="9.8" cy="12" r="0.9" fill="currentColor" />
+          <circle cx="14.2" cy="12" r="0.9" fill="currentColor" />
+          <path d="M9.6 15.2c1.2.9 3.6.9 4.8 0" strokeLinecap="round" />
+        </svg>
+      );
   }
 }
 
@@ -180,6 +193,42 @@ export function SkillIcon({ skillId, className = 'w-5 h-5' }: { skillId: SkillId
         <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8">
           <path d="M12 3l6 7-2 10H8L6 10l6-7z" fill="currentColor" fillOpacity="0.24" />
           <path d="M9.5 11.5h1.5m2 0h1.5" strokeLinecap="round" />
+        </svg>
+      );
+    case 'banana_bomb':
+      return (
+        <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M6 17c4 2 10 0 12-7-3 3-7 4-11 2-1.5-.7-2 3.5-1 5z" fill="currentColor" fillOpacity="0.28" strokeLinejoin="round" />
+          <path d="M17.5 6.5L20 4m-3.5.5l.8-2.2M20 7.5l2-.6" strokeLinecap="round" />
+        </svg>
+      );
+    case 'banana_peel':
+      return (
+        <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M12 6c-3 2-6 6-8 10 3 0 6-1 8-4 2 3 5 4 8 4-2-4-5-8-8-10z" fill="currentColor" fillOpacity="0.26" strokeLinejoin="round" />
+          <path d="M12 10v8M6 19.5h12" strokeLinecap="round" />
+        </svg>
+      );
+    case 'primate_fury':
+      return (
+        <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M13 3L6 13h5l-1 8 8-11h-5l0-7z" fill="currentColor" fillOpacity="0.26" strokeLinejoin="round" />
+          <path d="M4 8l2 1m14 5l-2-1" strokeLinecap="round" />
+        </svg>
+      );
+    case 'banana_rain':
+      return (
+        <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M5 10c2 1 5 0 6-4-1.6 1.5-3.8 2.2-6 1.2z" fill="currentColor" fillOpacity="0.28" strokeLinejoin="round" />
+          <path d="M12 15c2.2 1 5.2 0 6.2-4-1.6 1.5-3.8 2.2-6.2 1.2z" fill="currentColor" fillOpacity="0.28" strokeLinejoin="round" />
+          <path d="M6 19c2 1 4.8 0 5.8-3.6-1.5 1.4-3.6 2-5.8 1z" fill="currentColor" fillOpacity="0.28" strokeLinejoin="round" />
+        </svg>
+      );
+    case 'primate_instinct':
+      return (
+        <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M4 15c3.5 1.8 8.5 0 10.5-6-2.5 2.4-6 3.2-9.5 1.5" fill="currentColor" fillOpacity="0.22" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M9 19c3.5 1.8 8.5 0 10.5-6-2.5 2.4-6 3.2-9.5 1.5" fill="currentColor" fillOpacity="0.26" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       );
   }
@@ -245,6 +294,15 @@ export function GoldCoinIcon({ className = 'w-4 h-4' }: { className?: string }) 
     <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8">
       <circle cx="12" cy="12" r="8" fill="currentColor" fillOpacity="0.25" />
       <circle cx="12" cy="12" r="4.5" strokeOpacity="0.6" />
+    </svg>
+  );
+}
+
+export function SecretKeyIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8">
+      <circle cx="8" cy="12" r="4" fill="currentColor" fillOpacity="0.22" />
+      <path d="M12 12h9m-3 0v3m-3-3v2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

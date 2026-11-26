@@ -60,12 +60,15 @@ export function createDefaultSave(): SaveData {
     discoveredSynergies: [],
     unlockedAchievements: [],
     claimedAchievements: [],
+    redeemedCodes: [],
+    unlockedSecretClasses: [],
     records: [],
     settings: createDefaultSettings(),
   };
 }
 
-const VALID_CLASSES: ClassId[] = ['warrior', 'assassin', 'mage', 'necromancer', 'archer'];
+const VALID_CLASSES: ClassId[] = ['warrior', 'assassin', 'mage', 'necromancer', 'archer', 'slatt'];
+const SECRET_CLASSES: ClassId[] = ['slatt'];
 
 export function validateAndMigrateSave(raw: unknown): SaveData {
   const def = createDefaultSave();
@@ -125,9 +128,39 @@ export function validateAndMigrateSave(raw: unknown): SaveData {
     skillCastModes,
   };
 
-  const selectedClass = VALID_CLASSES.includes(obj.selectedClass as ClassId)
+  const redeemedCodes = Array.isArray(obj.redeemedCodes)
+    ? Array.from(
+        new Set(
+          obj.redeemedCodes
+            .filter((s): s is string => typeof s === 'string')
+            .map((s) => s.trim().toLowerCase())
+            .filter(Boolean)
+        )
+      )
+    : [];
+
+  const unlockedSecretClasses = Array.isArray(obj.unlockedSecretClasses)
+    ? Array.from(
+        new Set(
+          obj.unlockedSecretClasses.filter(
+            (s): s is ClassId => typeof s === 'string' && SECRET_CLASSES.includes(s as ClassId)
+          )
+        )
+      )
+    : [];
+
+  // Reconcile unlocked secret classes if code is recorded in redeemedCodes
+  if (redeemedCodes.includes('monkeyslatt') && !unlockedSecretClasses.includes('slatt')) {
+    unlockedSecretClasses.push('slatt');
+  }
+
+  const rawSelectedClass = VALID_CLASSES.includes(obj.selectedClass as ClassId)
     ? (obj.selectedClass as ClassId)
     : 'warrior';
+  const selectedClass =
+    SECRET_CLASSES.includes(rawSelectedClass) && !unlockedSecretClasses.includes(rawSelectedClass)
+      ? 'warrior'
+      : rawSelectedClass;
 
   const bestiaryKills: Record<string, number> = {};
   if (obj.bestiaryKills && typeof obj.bestiaryKills === 'object') {
@@ -170,6 +203,8 @@ export function validateAndMigrateSave(raw: unknown): SaveData {
     discoveredSynergies: Array.from(new Set(discoveredSynergies)),
     unlockedAchievements: Array.from(new Set(unlockedAchievements)),
     claimedAchievements: Array.from(new Set(claimedAchievements)),
+    redeemedCodes,
+    unlockedSecretClasses,
     records,
     settings,
   };

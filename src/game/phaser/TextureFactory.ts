@@ -695,7 +695,7 @@ function generateHeroSprites(scene: Phaser.Scene) {
         ctx.fill();
         ctx.stroke();
         ctx.restore();
-      } else {
+      } else if (cls.id === 'archer') {
         // Archer: Forest-shadow hooded ranger with quiver & recurve ebony longbow
         ctx.fillStyle = '#14332a';
         ctx.strokeStyle = '#09080c';
@@ -791,6 +791,168 @@ function generateHeroSprites(scene: Phaser.Scene) {
         ctx.lineTo(20, 4.5);
         ctx.closePath();
         ctx.fill();
+        ctx.restore();
+      } else if (cls.id === 'slatt') {
+        // Stylized Dark-Fantasy Monkey Hero (Slatt): curved tail, crimson-gold headband, dark furred tunic, glowing amber eyes & golden banana
+        // Curled prehensile tail behind body with golden ring band
+        ctx.strokeStyle = '#09080c';
+        ctx.lineWidth = 8.5;
+        ctx.beginPath();
+        ctx.moveTo(cx - 10, cy + 12);
+        ctx.bezierCurveTo(cx - 34, cy + 18, cx - 36, cy - 10, cx - 22, cy - 14);
+        ctx.stroke();
+        ctx.strokeStyle = '#6b4226';
+        ctx.lineWidth = 4.5;
+        ctx.beginPath();
+        ctx.moveTo(cx - 10, cy + 12);
+        ctx.bezierCurveTo(cx - 34, cy + 18, cx - 36, cy - 10, cx - 22, cy - 14);
+        ctx.stroke();
+        // Golden tail cuff
+        ctx.strokeStyle = '#eab308';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(cx - 31, cy - 1);
+        ctx.lineTo(cx - 25, cy + 1);
+        ctx.stroke();
+
+        // Tattered obsidian-gold explorer cloak behind shoulders
+        ctx.fillStyle = '#1f1924';
+        ctx.strokeStyle = '#09080c';
+        ctx.lineWidth = 2.8;
+        ctx.beginPath();
+        ctx.moveTo(cx - 17, cy - 6);
+        ctx.lineTo(cx - 24, cy + 20);
+        ctx.lineTo(cx - 8, cy + 17);
+        ctx.lineTo(cx + 2, cy + 23);
+        ctx.lineTo(cx + 18, cy + 18);
+        ctx.lineTo(cx + 16, cy - 6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Agile furred torso with dark-leather vest & golden bandolier
+        const furGrad = ctx.createLinearGradient(cx - 16, cy - 10, cx + 16, cy + 18);
+        furGrad.addColorStop(0, '#78492a');
+        furGrad.addColorStop(0.55, '#4e2e19');
+        furGrad.addColorStop(1, '#2b180d');
+        ctx.fillStyle = furGrad;
+        ctx.beginPath();
+        ctx.roundRect(cx - 15, cy - 9, 30, 26, 9);
+        ctx.fill();
+        ctx.stroke();
+
+        // Dark leather harness & gold buckle
+        ctx.fillStyle = '#1c1826';
+        ctx.fillRect(cx - 14, cy + 5, 28, 5);
+        ctx.strokeStyle = '#eab308';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(cx - 12, cy - 7);
+        ctx.lineTo(cx + 11, cy + 10);
+        ctx.stroke();
+        ctx.fillStyle = '#facc15';
+        ctx.fillRect(cx - 3.5, cy + 4.5, 7, 6);
+
+        // Expressive monkey ears (left & right)
+        ctx.strokeStyle = '#09080c';
+        ctx.lineWidth = 2.6;
+        for (const side of [-1, 1]) {
+          ctx.fillStyle = '#6b4226';
+          ctx.beginPath();
+          ctx.arc(cx + side * 15.5, cy - 15, 6.2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = '#d6a97c';
+          ctx.beginPath();
+          ctx.arc(cx + side * 15.5, cy - 15, 3.3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Stylized monkey head + warm muzzle
+        const headGrad = ctx.createRadialGradient(cx - 3, cy - 20, 3, cx, cy - 15, 16);
+        headGrad.addColorStop(0, '#8b5734');
+        headGrad.addColorStop(0.65, '#59341d');
+        headGrad.addColorStop(1, '#2c170b');
+        ctx.fillStyle = headGrad;
+        ctx.beginPath();
+        ctx.arc(cx, cy - 15, 14, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Face mask & lower muzzle
+        ctx.fillStyle = '#d9b186';
+        ctx.beginPath();
+        ctx.ellipse(cx, cy - 11, 10.5, 7.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(cx - 4.2, cy - 17, 4.6, 4.2, 0, 0, Math.PI * 2);
+        ctx.ellipse(cx + 4.2, cy - 17, 4.6, 4.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Mischievous dark-fantasy grin & nostrils
+        ctx.fillStyle = '#2b180d';
+        ctx.fillRect(cx - 2.4, cy - 12.2, 1.5, 1.5);
+        ctx.fillRect(cx + 0.9, cy - 12.2, 1.5, 1.5);
+        ctx.strokeStyle = '#2b180d';
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.arc(cx, cy - 9.5, 4.8, 0.15, Math.PI - 0.15);
+        ctx.stroke();
+
+        // Crimson-and-gold dark-fantasy headband with trailing ribbon tails
+        ctx.fillStyle = '#b91c1c';
+        ctx.strokeStyle = '#09080c';
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.roundRect(cx - 14, cy - 25.5, 28, 6.5, 3);
+        ctx.fill();
+        ctx.stroke();
+        // Headband gold crest gem
+        ctx.fillStyle = '#facc15';
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - 25.2);
+        ctx.lineTo(cx + 4, cy - 22.2);
+        ctx.lineTo(cx, cy - 19.2);
+        ctx.lineTo(cx - 4, cy - 22.2);
+        ctx.closePath();
+        ctx.fill();
+        // Flowing crimson headband tails
+        ctx.fillStyle = '#991b1b';
+        ctx.beginPath();
+        ctx.moveTo(cx - 13, cy - 23);
+        ctx.lineTo(cx - 26, cy - 28);
+        ctx.lineTo(cx - 22, cy - 20);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Intense glowing amber-gold eyes
+        drawGlowingEyes(ctx, cx - 7, cy - 18.2, cx + 2.8, cy - 18.2, 4.2, 3.2, '#facc15');
+
+        // Ready Golden Banana held in right hand
+        ctx.save();
+        ctx.translate(cx + 22, cy - 3);
+        ctx.rotate(-0.45);
+        ctx.fillStyle = '#facc15';
+        ctx.strokeStyle = '#09080c';
+        ctx.lineWidth = 2.4;
+        ctx.beginPath();
+        ctx.moveTo(-4, -14);
+        ctx.quadraticCurveTo(12, -2, -2, 14);
+        ctx.quadraticCurveTo(3, 0, -4, -14);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        // Banana highlight & dark stem tips
+        ctx.strokeStyle = '#fef9c3';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(-1, -9);
+        ctx.quadraticCurveTo(6, -1, 0, 9);
+        ctx.stroke();
+        ctx.fillStyle = '#451a03';
+        ctx.fillRect(-5.5, -16, 3.5, 3);
+        ctx.fillRect(-3.8, 12.5, 3, 2.6);
         ctx.restore();
       }
     });
@@ -1853,6 +2015,122 @@ function generateProjectilesAndEffects(scene: Phaser.Scene) {
     ctx.lineTo(1, 7);
     ctx.lineTo(11, 12);
     ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  });
+
+  // Slatt spinning golden banana projectile
+  makeCanvas(scene, 'proj_banana', 30, 30, (ctx) => {
+    const glow = ctx.createRadialGradient(15, 15, 2, 15, 15, 14);
+    glow.addColorStop(0, 'rgba(250, 204, 21, 0.35)');
+    glow.addColorStop(1, 'rgba(250, 204, 21, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(15, 15, 14, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#facc15';
+    ctx.strokeStyle = '#09080c';
+    ctx.lineWidth = 2.2;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(9, 4);
+    ctx.quadraticCurveTo(26, 14, 11, 26);
+    ctx.quadraticCurveTo(16, 15, 9, 4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle = '#fef9c3';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(12, 8);
+    ctx.quadraticCurveTo(19, 15, 13, 21);
+    ctx.stroke();
+
+    ctx.fillStyle = '#451a03';
+    ctx.fillRect(7.5, 2.5, 3.2, 3);
+    ctx.fillRect(9.5, 24.5, 3, 2.6);
+  });
+
+  // Slatt explosive banana projectile (burning rune fuse + crimson core)
+  makeCanvas(scene, 'proj_banana_bomb', 38, 38, (ctx) => {
+    const glow = ctx.createRadialGradient(19, 19, 3, 19, 19, 18);
+    glow.addColorStop(0, 'rgba(251, 146, 60, 0.65)');
+    glow.addColorStop(0.6, 'rgba(220, 38, 38, 0.25)');
+    glow.addColorStop(1, 'rgba(220, 38, 38, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(19, 19, 18, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#f59e0b';
+    ctx.strokeStyle = '#09080c';
+    ctx.lineWidth = 2.4;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(12, 6);
+    ctx.quadraticCurveTo(33, 18, 14, 33);
+    ctx.quadraticCurveTo(20, 19, 12, 6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Crimson explosive band
+    ctx.strokeStyle = '#dc2626';
+    ctx.lineWidth = 3.2;
+    ctx.beginPath();
+    ctx.moveTo(17, 16);
+    ctx.lineTo(25, 20);
+    ctx.stroke();
+
+    // Burning spark at tip
+    const sp = ctx.createRadialGradient(11, 5, 1, 11, 5, 6);
+    sp.addColorStop(0, '#ffffff');
+    sp.addColorStop(0.5, '#fef08a');
+    sp.addColorStop(1, 'rgba(249, 115, 22, 0)');
+    ctx.fillStyle = sp;
+    ctx.beginPath();
+    ctx.arc(11, 5, 6, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // Slatt banana peel trap on the dungeon floor
+  makeCanvas(scene, 'fx_banana_peel', 40, 40, (ctx) => {
+    drawGroundShadow(ctx, 20, 25, 14, 7, 0.45);
+    ctx.strokeStyle = '#09080c';
+    ctx.lineWidth = 2.2;
+    ctx.lineJoin = 'round';
+    ctx.fillStyle = '#facc15';
+    // Left splayed petal
+    ctx.beginPath();
+    ctx.moveTo(20, 11);
+    ctx.quadraticCurveTo(10, 14, 6, 25);
+    ctx.quadraticCurveTo(14, 24, 19, 18);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Right splayed petal
+    ctx.beginPath();
+    ctx.moveTo(20, 11);
+    ctx.quadraticCurveTo(30, 14, 34, 25);
+    ctx.quadraticCurveTo(26, 24, 21, 18);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Center front petal
+    ctx.fillStyle = '#fde047';
+    ctx.beginPath();
+    ctx.moveTo(20, 12);
+    ctx.quadraticCurveTo(25, 22, 20, 30);
+    ctx.quadraticCurveTo(15, 22, 20, 12);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Dark stem cap
+    ctx.fillStyle = '#451a03';
+    ctx.beginPath();
+    ctx.arc(20, 11, 3, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
   });

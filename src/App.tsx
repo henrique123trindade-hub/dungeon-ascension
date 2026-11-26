@@ -5,6 +5,7 @@ import { CodexModal } from './components/CodexModal';
 import { EventModal } from './components/EventModal';
 import { GameHUD } from './components/GameHUD';
 import { LevelUpModal } from './components/LevelUpModal';
+import { RedeemCodeModal } from './components/RedeemCodeModal';
 import { SanctuaryModal } from './components/SanctuaryModal';
 import { GameOverModal, PauseModal, SettingsModal } from './components/SystemModals';
 import { TitleScreen } from './components/TitleScreen';
@@ -20,6 +21,7 @@ import {
   purchasePermanentUpgrade,
   syncAchievements,
 } from './game/systems/saveManager';
+import { redeemSecretCode, type RedeemCodeResult } from './game/systems/secretCodeManager';
 import type {
   ActiveEventPayload,
   ActiveModalType,
@@ -265,12 +267,18 @@ export default function App() {
       const st = gameStateRef.current;
       const modal = activeModalRef.current;
 
-      if (e.code === 'KeyM' && st === 'playing' && !modal) {
+      const target = e.target;
+      const isTextInput =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target instanceof HTMLElement && target.isContentEditable);
+
+      if (e.code === 'KeyM' && st === 'playing' && !modal && !isTextInput) {
         toggleMute();
         return;
       }
 
-      if (e.code === 'Escape' || e.code === 'KeyP') {
+      if (e.code === 'Escape' || (e.code === 'KeyP' && !isTextInput)) {
         if (st === 'playing') {
           if (e.code === 'Escape' && !modal && phaserBridge.getController()?.hasPendingCast()) {
             phaserBridge.getController()?.cancelPendingCast();
@@ -388,6 +396,20 @@ export default function App() {
     setActiveModal(null);
   }, []);
 
+  const handleRedeemCode = useCallback(
+    (rawCode: string): RedeemCodeResult => {
+      const result = redeemSecretCode(saveRef.current, rawCode);
+      if (result.status === 'success') {
+        audioEngine.playSecretUnlock();
+        updateSave(() => result.save);
+      } else {
+        audioEngine.playUiClick();
+      }
+      return result;
+    },
+    [updateSave]
+  );
+
   return (
     <div className="relative w-full h-full overflow-hidden bg-[#0b0a0e]">
       {/* Isolated Phaser 3 WebGL + Arcade Physics Engine */}
@@ -401,6 +423,7 @@ export default function App() {
           onOpenClassSelect={() => setActiveModal('classSelect')}
           onOpenSanctuary={() => setActiveModal('sanctuary')}
           onOpenCodex={() => setActiveModal('codex')}
+          onOpenRedeemCode={() => setActiveModal('redeemCode')}
           onOpenSettings={() => setActiveModal('settings')}
           hasModalOpen={activeModal !== null}
         />
@@ -421,8 +444,25 @@ export default function App() {
       {activeModal === 'classSelect' && (
         <ClassSelectModal
           selectedClass={save.selectedClass}
+          unlockedSecretClasses={save.unlockedSecretClasses}
           onSelectClass={(id) => updateSave((prev) => ({ ...prev, selectedClass: id }))}
           onStartWithClass={(id) => startRun(id)}
+          onClose={() => setActiveModal(null)}
+        />
+      )}
+
+      {/* Redeem Secret Code Modal */}
+      {activeModal === 'redeemCode' && (
+        <RedeemCodeModal
+          redeemedCodes={save.redeemedCodes}
+          onRedeem={handleRedeemCode}
+          onPlayClass={(classId) => startRun(classId)}
+          onOpenClasses={(selectClassId) => {
+            if (selectClassId) {
+              updateSave((prev) => ({ ...prev, selectedClass: selectClassId }));
+            }
+            setActiveModal('classSelect');
+          }}
           onClose={() => setActiveModal(null)}
         />
       )}
@@ -497,6 +537,7 @@ export default function App() {
       {activeModal === 'settings' && (
         <SettingsModal
           settings={save.settings}
+          unlockedSecretClasses={save.unlockedSecretClasses}
           onUpdate={handleUpdateSettings}
           onResetSave={handleResetSave}
           onClose={() => setActiveModal(null)}

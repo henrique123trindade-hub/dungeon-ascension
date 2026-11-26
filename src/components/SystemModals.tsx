@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { CLASSES } from '../game/data/classes';
 import { SKILL_LIST, SYNERGIES } from '../game/data/skills';
-import type { CastMode, RunSummarySnapshot, SettingsData, SkillId } from '../game/types';
+import type { CastMode, ClassId, RunSummarySnapshot, SettingsData, SkillId } from '../game/types';
 import { CrystalIcon } from './Icons';
 
 interface PauseModalProps {
@@ -188,15 +188,26 @@ export function GameOverModal({
 
 interface SettingsModalProps {
   settings: SettingsData;
+  unlockedSecretClasses?: ClassId[];
   onUpdate: (next: SettingsData) => void;
   onResetSave: () => void;
   onClose: () => void;
 }
 
-export function SettingsModal({ settings, onUpdate, onResetSave, onClose }: SettingsModalProps) {
+export function SettingsModal({
+  settings,
+  unlockedSecretClasses = [],
+  onUpdate,
+  onResetSave,
+  onClose,
+}: SettingsModalProps) {
   const [confirmReset, setConfirmReset] = useState(false);
   const [showPerSkillCast, setShowPerSkillCast] = useState(false);
-  const activeSkills = SKILL_LIST.filter((s) => s.type === 'active');
+  const activeSkills = SKILL_LIST.filter(
+    (s) =>
+      s.type === 'active' &&
+      (!s.exclusiveToClass || unlockedSecretClasses.includes(s.exclusiveToClass))
+  );
 
   const setSkillMode = (skillId: SkillId, mode: CastMode | 'default') => {
     const nextMap = { ...(settings.skillCastModes ?? {}) };

@@ -314,6 +314,7 @@ export function computePlayerStats(params: {
   activeSynergies: SynergyId[];
   skills: Partial<Record<SkillId, number>>;
   furyActive?: boolean;
+  primateFuryActive?: boolean;
 }): ComputedPlayerStats {
   const cls = CLASSES[params.classId];
   const base = cls.baseStats;
@@ -383,6 +384,11 @@ export function computePlayerStats(params: {
   const furyAspdBonus = params.furyActive ? (furyLv >= 7 ? 0.6 : furyLv >= 4 ? 0.42 : 0.28) : 0;
   const furyCritBonus = params.furyActive && furyLv >= 4 ? 0.12 : 0;
 
+  const primateLv = params.skills.primate_fury ?? 0;
+  const primateAspdBonus = params.primateFuryActive ? (primateLv >= 7 ? 0.75 : primateLv >= 4 ? 0.55 : 0.38) : 0;
+  const primateMoveBonus = params.primateFuryActive ? (primateLv >= 7 ? 0.44 : primateLv >= 4 ? 0.34 : 0.24) : 0;
+  const primateCritBonus = params.primateFuryActive && primateLv >= 7 ? 0.1 : 0;
+
   const maxHp = Math.max(
     40,
     Math.round(
@@ -409,18 +415,18 @@ export function computePlayerStats(params: {
   const attackSpeed = Math.min(
     8.5,
     base.attackSpeed *
-      (1 + params.mods.attackSpeedPct + eqAttackSpeedPct + evoAspdBonus + furyAspdBonus) *
+      (1 + params.mods.attackSpeedPct + eqAttackSpeedPct + evoAspdBonus + furyAspdBonus + primateAspdBonus) *
       params.mods.attackSpeedMult
   );
 
   const moveSpeed = Math.min(
-    450,
-    (base.moveSpeed + evoSpeedBonus) * (1 + params.mods.moveSpeedPct + eqMoveSpeedPct)
+    480,
+    (base.moveSpeed + evoSpeedBonus) * (1 + params.mods.moveSpeedPct + eqMoveSpeedPct + primateMoveBonus)
   );
 
   const critChance = Math.min(
     0.92,
-    base.critChance + params.mods.critChance + eqCritChance + evoCritBonus + furyCritBonus
+    base.critChance + params.mods.critChance + eqCritChance + evoCritBonus + furyCritBonus + primateCritBonus
   );
 
   const critDamage = base.critDamage + params.mods.critDamage + eqCritDamage;
@@ -712,6 +718,7 @@ export function generateLevelUpOptions(params: {
   luck: number;
   currentSkills: Partial<Record<SkillId, number>>;
   playerLevel?: number;
+  classId?: ClassId;
   rng?: () => number;
 }): UpgradeOption[] {
   const rng = params.rng ?? Math.random;
@@ -719,7 +726,11 @@ export function generateLevelUpOptions(params: {
   const options: UpgradeOption[] = [];
   const usedIds = new Set<string>();
 
-  const eligibleSkills = SKILL_LIST.filter((s) => (params.currentSkills[s.id] ?? 0) < s.maxLevel);
+  const eligibleSkills = SKILL_LIST.filter(
+    (s) =>
+      (!s.exclusiveToClass || s.exclusiveToClass === params.classId) &&
+      (params.currentSkills[s.id] ?? 0) < s.maxLevel
+  );
 
   // Build 3 varied choices: guarantee at least 1 skill option if eligible
   for (let i = 0; i < 3; i++) {
@@ -968,7 +979,7 @@ export function createStarterWeapon(classId: ClassId): EquipmentItem {
     stats: {
       damage: 4,
       damagePct: 0.03,
-      critChance: classId === 'assassin' || classId === 'archer' ? 0.02 : undefined,
+      critChance: classId === 'assassin' || classId === 'archer' || classId === 'slatt' ? 0.02 : undefined,
     },
     sellValue: 12,
   };

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { CLASSES } from '../game/data/classes';
 import type { SaveData } from '../game/types';
-import { ClassIcon, CrystalIcon, DungeonTitleCrest } from './Icons';
+import { ClassIcon, CrystalIcon, DungeonTitleCrest, SecretKeyIcon } from './Icons';
 
 interface TitleScreenProps {
   save: SaveData;
@@ -9,6 +9,7 @@ interface TitleScreenProps {
   onOpenClassSelect: () => void;
   onOpenSanctuary: () => void;
   onOpenCodex: () => void;
+  onOpenRedeemCode: () => void;
   onOpenSettings: () => void;
   hasModalOpen: boolean;
 }
@@ -19,6 +20,7 @@ export function TitleScreen({
   onOpenClassSelect,
   onOpenSanctuary,
   onOpenCodex,
+  onOpenRedeemCode,
   onOpenSettings,
   hasModalOpen,
 }: TitleScreenProps) {
@@ -140,6 +142,16 @@ export function TitleScreen({
                 Códice
               </button>
             </div>
+
+            <button
+              type="button"
+              data-testid="menu-redeem-code"
+              onClick={onOpenRedeemCode}
+              className="w-full py-2.5 px-4 bg-[#14111a]/92 hover:bg-[#1f1a28] text-[#e8d5a8] hover:text-[#fef08a] text-xs font-medium tracking-wider uppercase border border-[#d4a64a]/30 hover:border-[#f59e0b]/65 transition-colors cursor-pointer flex items-center justify-center gap-2 whitespace-nowrap"
+            >
+              <SecretKeyIcon className="w-4 h-4 text-[#f59e0b]" />
+              <span>Resgatar código</span>
+            </button>
           </div>
         </div>
       </div>
