@@ -954,6 +954,341 @@ function generateHeroSprites(scene: Phaser.Scene) {
         ctx.fillRect(-5.5, -16, 3.5, 3);
         ctx.fillRect(-3.8, 12.5, 3, 2.6);
         ctx.restore();
+      } else if (cls.id === 'farid') {
+        // Farid — Caricatured Tricolor hero: white fluffy hair & white beard, iconic bright blue-framed glasses,
+        // blue/black/white vertical striped Tricolor jersey, holding a glowing blue-energy soccer ball.
+        // Dark boots & shorts base
+        ctx.fillStyle = '#0f172a';
+        ctx.strokeStyle = '#09080c';
+        ctx.lineWidth = 2.4;
+        ctx.beginPath();
+        ctx.roundRect(cx - 14, cy + 16, 11, 10, 3);
+        ctx.roundRect(cx + 3, cy + 16, 11, 10, 3);
+        ctx.fill();
+        ctx.stroke();
+
+        // Subtle dark-fantasy tricolor cape behind shoulders
+        ctx.fillStyle = '#0369a1';
+        ctx.beginPath();
+        ctx.moveTo(cx - 17, cy - 3);
+        ctx.lineTo(cx - 25, cy + 20);
+        ctx.lineTo(cx + 25, cy + 20);
+        ctx.lineTo(cx + 17, cy - 3);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Tricolor jersey torso (vertical sky-blue, black, white stripes clipped inside torso)
+        ctx.save();
+        ctx.beginPath();
+        ctx.roundRect(cx - 17, cy - 4, 34, 24, 7);
+        ctx.clip();
+        ctx.fillStyle = '#0ea5e9';
+        ctx.fillRect(cx - 18, cy - 5, 36, 26);
+        // Black vertical stripes
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(cx - 11, cy - 5, 7, 26);
+        ctx.fillRect(cx + 4, cy - 5, 7, 26);
+        // Crisp white pinstripes separating blue and black
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(cx - 12.5, cy - 5, 1.8, 26);
+        ctx.fillRect(cx - 4.2, cy - 5, 1.8, 26);
+        ctx.fillRect(cx + 2.4, cy - 5, 1.8, 26);
+        ctx.fillRect(cx + 10.8, cy - 5, 1.8, 26);
+        ctx.restore();
+        // Torso outline & white V-collar
+        ctx.strokeStyle = '#09080c';
+        ctx.lineWidth = 2.6;
+        ctx.beginPath();
+        ctx.roundRect(cx - 17, cy - 4, 34, 24, 7);
+        ctx.stroke();
+        ctx.strokeStyle = '#f8fafc';
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.moveTo(cx - 6, cy - 4);
+        ctx.lineTo(cx, cy + 2);
+        ctx.lineTo(cx + 6, cy - 4);
+        ctx.stroke();
+
+        // Tricolor sleeves & hands
+        ctx.fillStyle = '#0ea5e9';
+        ctx.strokeStyle = '#09080c';
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.ellipse(cx - 18, cy + 4, 5.5, 7.5, 0.25, 0, Math.PI * 2);
+        ctx.ellipse(cx + 18, cy + 4, 5.5, 7.5, -0.25, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Warm skin face & ears
+        ctx.fillStyle = '#f1c29b';
+        ctx.beginPath();
+        ctx.arc(cx - 13.5, cy - 16, 3.6, 0, Math.PI * 2);
+        ctx.arc(cx + 13.5, cy - 16, 3.6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#f4c8a3';
+        ctx.beginPath();
+        ctx.ellipse(cx, cy - 17, 13.2, 13.8, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Signature full fluffy white hair (swept up & sides, recognizable silhouette)
+        ctx.fillStyle = '#f8fafc';
+        ctx.beginPath();
+        ctx.moveTo(cx - 14, cy - 18);
+        ctx.quadraticCurveTo(cx - 16, cy - 32, cx - 5, cy - 33);
+        ctx.quadraticCurveTo(cx + 2, cy - 36, cx + 9, cy - 32);
+        ctx.quadraticCurveTo(cx + 16, cy - 30, cx + 14, cy - 18);
+        ctx.quadraticCurveTo(cx + 10, cy - 25, cx, cy - 25.5);
+        ctx.quadraticCurveTo(cx - 10, cy - 25, cx - 14, cy - 18);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        // Subtle silver-gray hair tuft texture
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(cx - 6, cy - 29);
+        ctx.quadraticCurveTo(cx, cy - 32, cx + 7, cy - 28.5);
+        ctx.stroke();
+
+        // Full groomed white beard & mustache
+        ctx.fillStyle = '#f1f5f9';
+        ctx.strokeStyle = '#09080c';
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.moveTo(cx - 12.5, cy - 14);
+        ctx.quadraticCurveTo(cx - 12.5, cy - 2, cx, cy - 0.5);
+        ctx.quadraticCurveTo(cx + 12.5, cy - 2, cx + 12.5, cy - 14);
+        ctx.quadraticCurveTo(cx + 7, cy - 10.5, cx, cy - 11.5);
+        ctx.quadraticCurveTo(cx - 7, cy - 10.5, cx - 12.5, cy - 14);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        // Expressive charismatic smile inside white beard
+        ctx.fillStyle = '#7f1d1d';
+        ctx.beginPath();
+        ctx.ellipse(cx, cy - 8.2, 4.4, 2.3, 0, 0, Math.PI);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(cx - 3.2, cy - 8.6, 6.4, 1.3);
+
+        // Iconic bright blue-framed glasses with crisp lenses & determined eyes
+        ctx.fillStyle = '#e0f2fe';
+        ctx.strokeStyle = '#0284c7';
+        ctx.lineWidth = 2.6;
+        ctx.beginPath();
+        ctx.roundRect(cx - 11.5, cy - 22, 9.5, 6.8, 2);
+        ctx.roundRect(cx + 2, cy - 22, 9.5, 6.8, 2);
+        ctx.fill();
+        ctx.stroke();
+        // Glasses bridge & outer blue rim glow
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.moveTo(cx - 2, cy - 18.8);
+        ctx.lineTo(cx + 2, cy - 18.8);
+        ctx.stroke();
+        // Lively eyes behind lenses
+        ctx.fillStyle = '#0f172a';
+        ctx.beginPath();
+        ctx.arc(cx - 6.7, cy - 18.6, 1.7, 0, Math.PI * 2);
+        ctx.arc(cx + 6.7, cy - 18.6, 1.7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(cx - 9.8, cy - 20.8, 2.5, 1.3);
+        ctx.fillRect(cx + 3.6, cy - 20.8, 2.5, 1.3);
+
+        // Glowing blue-energy soccer ball held ready in right hand
+        ctx.save();
+        ctx.translate(cx + 22, cy + 1);
+        const aura = ctx.createRadialGradient(0, 0, 2, 0, 0, 12);
+        aura.addColorStop(0, 'rgba(56, 189, 248, 0.9)');
+        aura.addColorStop(0.6, 'rgba(14, 165, 233, 0.35)');
+        aura.addColorStop(1, 'rgba(14, 165, 233, 0)');
+        ctx.fillStyle = aura;
+        ctx.beginPath();
+        ctx.arc(0, 0, 12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#f8fafc';
+        ctx.strokeStyle = '#09080c';
+        ctx.lineWidth = 2.0;
+        ctx.beginPath();
+        ctx.arc(0, 0, 7.6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        // Soccer pentagon patches
+        ctx.fillStyle = '#0f172a';
+        ctx.beginPath();
+        ctx.arc(0, 0, 2.6, 0, Math.PI * 2);
+        ctx.arc(-5, -3.5, 1.7, 0, Math.PI * 2);
+        ctx.arc(5, -3.5, 1.7, 0, Math.PI * 2);
+        ctx.arc(0, 5.8, 1.7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      } else if (cls.id === 'baldasso') {
+        // Baldasso — Caricatured Colorado warrior: smooth shaved bald head with top shine,
+        // intense furrowed brow & fiery gaze, grizzled gray beard, red & white Colorado jersey,
+        // holding a blazing red-energy soccer ball.
+        // Dark boots & shorts
+        ctx.fillStyle = '#1f2937';
+        ctx.strokeStyle = '#09080c';
+        ctx.lineWidth = 2.4;
+        ctx.beginPath();
+        ctx.roundRect(cx - 14, cy + 16, 11, 10, 3);
+        ctx.roundRect(cx + 3, cy + 16, 11, 10, 3);
+        ctx.fill();
+        ctx.stroke();
+
+        // Deep crimson Colorado battle cloak behind shoulders
+        ctx.fillStyle = '#7f1d1d';
+        ctx.beginPath();
+        ctx.moveTo(cx - 18, cy - 3);
+        ctx.lineTo(cx - 26, cy + 20);
+        ctx.lineTo(cx + 26, cy + 20);
+        ctx.lineTo(cx + 18, cy - 3);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Vibrant red Colorado jersey with crisp white collar & white shoulder bands
+        ctx.fillStyle = '#dc2626';
+        ctx.strokeStyle = '#09080c';
+        ctx.lineWidth = 2.6;
+        ctx.beginPath();
+        ctx.roundRect(cx - 18, cy - 4, 36, 24, 7);
+        ctx.fill();
+        ctx.stroke();
+        // Crisp white vertical chest stripe accent & collar
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(cx - 17, cy - 3, 5, 6);
+        ctx.fillRect(cx + 12, cy - 3, 5, 6);
+        ctx.beginPath();
+        ctx.moveTo(cx - 7, cy - 4);
+        ctx.lineTo(cx, cy + 3);
+        ctx.lineTo(cx + 7, cy - 4);
+        ctx.lineTo(cx + 4, cy - 4);
+        ctx.lineTo(cx, cy);
+        ctx.lineTo(cx - 4, cy - 4);
+        ctx.closePath();
+        ctx.fill();
+        // Small white Colorado chest crest
+        ctx.fillStyle = '#f8fafc';
+        ctx.beginPath();
+        ctx.arc(cx - 7.5, cy + 5.5, 3.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#dc2626';
+        ctx.beginPath();
+        ctx.arc(cx - 7.5, cy + 5.5, 1.7, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Muscular red sleeves
+        ctx.fillStyle = '#b91c1c';
+        ctx.strokeStyle = '#09080c';
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.ellipse(cx - 19, cy + 4, 5.8, 7.6, 0.25, 0, Math.PI * 2);
+        ctx.ellipse(cx + 19, cy + 4, 5.8, 7.6, -0.25, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Ears
+        ctx.fillStyle = '#e8b38c';
+        ctx.beginPath();
+        ctx.arc(cx - 13.8, cy - 16, 3.8, 0, Math.PI * 2);
+        ctx.arc(cx + 13.8, cy - 16, 3.8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Shaved bald head — smooth dome with bright specular shine
+        const headGrad = ctx.createRadialGradient(cx - 4, cy - 26, 2, cx, cy - 18, 16);
+        headGrad.addColorStop(0, '#fbd5b5');
+        headGrad.addColorStop(0.55, '#eab38b');
+        headGrad.addColorStop(1, '#c98b63');
+        ctx.fillStyle = headGrad;
+        ctx.strokeStyle = '#09080c';
+        ctx.lineWidth = 2.6;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy - 19, 13.4, 15.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        // Bald dome highlight
+        ctx.fillStyle = 'rgba(255, 250, 240, 0.58)';
+        ctx.beginPath();
+        ctx.ellipse(cx - 4.5, cy - 27.5, 4.6, 2.3, -0.35, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Grizzled gray & slate beard around jawline and chin
+        ctx.fillStyle = '#64748b';
+        ctx.strokeStyle = '#09080c';
+        ctx.lineWidth = 2.1;
+        ctx.beginPath();
+        ctx.moveTo(cx - 12.6, cy - 14.5);
+        ctx.quadraticCurveTo(cx - 12.5, cy - 2.5, cx, cy - 1);
+        ctx.quadraticCurveTo(cx + 12.5, cy - 2.5, cx + 12.6, cy - 14.5);
+        ctx.quadraticCurveTo(cx + 8, cy - 9.5, cx, cy - 11.2);
+        ctx.quadraticCurveTo(cx - 8, cy - 9.5, cx - 12.6, cy - 14.5);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        // Silver-white grizzled beard streaks
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(cx - 7, cy - 8);
+        ctx.lineTo(cx - 4, cy - 3.5);
+        ctx.moveTo(cx + 7, cy - 8);
+        ctx.lineTo(cx + 4, cy - 3.5);
+        ctx.moveTo(cx, cy - 5.5);
+        ctx.lineTo(cx, cy - 2.2);
+        ctx.stroke();
+
+        // Intense fierce furrowed eyebrows + blazing eyes + passionate war-cry mouth
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 2.8;
+        ctx.beginPath();
+        ctx.moveTo(cx - 10.5, cy - 22.8);
+        ctx.lineTo(cx - 2.2, cy - 20);
+        ctx.moveTo(cx + 10.5, cy - 22.8);
+        ctx.lineTo(cx + 2.2, cy - 20);
+        ctx.stroke();
+        drawGlowingEyes(ctx, cx - 7.5, cy - 19.2, cx + 3.1, cy - 19.2, 4.4, 3.0, '#fca5a5');
+        // Intense shouting expression
+        ctx.fillStyle = '#450a0a';
+        ctx.beginPath();
+        ctx.roundRect(cx - 5, cy - 10.4, 10, 4.2, 1.6);
+        ctx.fill();
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(cx - 4.2, cy - 10.1, 8.4, 1.3);
+
+        // Blazing red-energy soccer ball held ready in right hand
+        ctx.save();
+        ctx.translate(cx + 22, cy + 1);
+        const aura = ctx.createRadialGradient(0, 0, 2, 0, 0, 12.5);
+        aura.addColorStop(0, 'rgba(249, 115, 22, 0.92)');
+        aura.addColorStop(0.55, 'rgba(220, 38, 38, 0.42)');
+        aura.addColorStop(1, 'rgba(220, 38, 38, 0)');
+        ctx.fillStyle = aura;
+        ctx.beginPath();
+        ctx.arc(0, 0, 12.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fff1f2';
+        ctx.strokeStyle = '#09080c';
+        ctx.lineWidth = 2.0;
+        ctx.beginPath();
+        ctx.arc(0, 0, 7.6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#991b1b';
+        ctx.beginPath();
+        ctx.arc(0, 0, 2.6, 0, Math.PI * 2);
+        ctx.arc(-5, -3.5, 1.7, 0, Math.PI * 2);
+        ctx.arc(5, -3.5, 1.7, 0, Math.PI * 2);
+        ctx.arc(0, 5.8, 1.7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
       }
     });
   }
@@ -2132,6 +2467,147 @@ function generateProjectilesAndEffects(scene: Phaser.Scene) {
     ctx.beginPath();
     ctx.arc(20, 11, 3, 0, Math.PI * 2);
     ctx.fill();
+    ctx.stroke();
+  });
+
+  // Farid basic attack: blue-energy soccer ball
+  makeCanvas(scene, 'proj_ball_blue', 30, 30, (ctx) => {
+    const aura = ctx.createRadialGradient(15, 15, 4, 15, 15, 15);
+    aura.addColorStop(0, 'rgba(224, 242, 254, 0.95)');
+    aura.addColorStop(0.5, 'rgba(14, 165, 233, 0.65)');
+    aura.addColorStop(1, 'rgba(14, 165, 233, 0)');
+    ctx.fillStyle = aura;
+    ctx.beginPath();
+    ctx.arc(15, 15, 15, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.strokeStyle = '#09080c';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(15, 15, 8.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.arc(15, 15, 3.1, 0, Math.PI * 2);
+    ctx.arc(9.5, 11.2, 2.0, 0, Math.PI * 2);
+    ctx.arc(20.5, 11.2, 2.0, 0, Math.PI * 2);
+    ctx.arc(15, 21.5, 2.0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.arc(15, 15, 10.6, 0, Math.PI * 2);
+    ctx.stroke();
+  });
+
+  // Farid Q & F: charged piercing Tricolor energy soccer ball
+  makeCanvas(scene, 'proj_ball_tricolor_heavy', 40, 40, (ctx) => {
+    const aura = ctx.createRadialGradient(20, 20, 6, 20, 20, 20);
+    aura.addColorStop(0, 'rgba(240, 249, 255, 1)');
+    aura.addColorStop(0.42, 'rgba(56, 189, 248, 0.85)');
+    aura.addColorStop(0.75, 'rgba(2, 132, 199, 0.35)');
+    aura.addColorStop(1, 'rgba(2, 132, 199, 0)');
+    ctx.fillStyle = aura;
+    ctx.beginPath();
+    ctx.arc(20, 20, 20, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.strokeStyle = '#09080c';
+    ctx.lineWidth = 2.3;
+    ctx.beginPath();
+    ctx.arc(20, 20, 11.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.arc(20, 20, 4.0, 0, Math.PI * 2);
+    ctx.arc(13, 15, 2.5, 0, Math.PI * 2);
+    ctx.arc(27, 15, 2.5, 0, Math.PI * 2);
+    ctx.arc(14.5, 26.5, 2.4, 0, Math.PI * 2);
+    ctx.arc(25.5, 26.5, 2.4, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = '#7dd3fc';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.arc(20, 20, 14.2, 0, Math.PI * 2);
+    ctx.stroke();
+  });
+
+  // Baldasso basic attack: red-energy soccer ball
+  makeCanvas(scene, 'proj_ball_red', 30, 30, (ctx) => {
+    const aura = ctx.createRadialGradient(15, 15, 4, 15, 15, 15);
+    aura.addColorStop(0, 'rgba(254, 226, 226, 0.95)');
+    aura.addColorStop(0.5, 'rgba(239, 68, 68, 0.68)');
+    aura.addColorStop(1, 'rgba(220, 38, 38, 0)');
+    ctx.fillStyle = aura;
+    ctx.beginPath();
+    ctx.arc(15, 15, 15, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#fff5f5';
+    ctx.strokeStyle = '#09080c';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(15, 15, 8.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#991b1b';
+    ctx.beginPath();
+    ctx.arc(15, 15, 3.1, 0, Math.PI * 2);
+    ctx.arc(9.5, 11.2, 2.0, 0, Math.PI * 2);
+    ctx.arc(20.5, 11.2, 2.0, 0, Math.PI * 2);
+    ctx.arc(15, 21.5, 2.0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = '#f87171';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.arc(15, 15, 10.6, 0, Math.PI * 2);
+    ctx.stroke();
+  });
+
+  // Baldasso Q: flaming explosive Colorado soccer ball
+  makeCanvas(scene, 'proj_ball_fire', 40, 40, (ctx) => {
+    const aura = ctx.createRadialGradient(20, 20, 5, 20, 20, 20);
+    aura.addColorStop(0, 'rgba(254, 243, 199, 1)');
+    aura.addColorStop(0.4, 'rgba(249, 115, 22, 0.9)');
+    aura.addColorStop(0.75, 'rgba(220, 38, 38, 0.45)');
+    aura.addColorStop(1, 'rgba(220, 38, 38, 0)');
+    ctx.fillStyle = aura;
+    ctx.beginPath();
+    ctx.arc(20, 20, 20, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#fff7ed';
+    ctx.strokeStyle = '#09080c';
+    ctx.lineWidth = 2.3;
+    ctx.beginPath();
+    ctx.arc(20, 20, 10.8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#b91c1c';
+    ctx.beginPath();
+    ctx.arc(20, 20, 3.9, 0, Math.PI * 2);
+    ctx.arc(13, 15, 2.4, 0, Math.PI * 2);
+    ctx.arc(27, 15, 2.4, 0, Math.PI * 2);
+    ctx.arc(14.5, 26.2, 2.3, 0, Math.PI * 2);
+    ctx.arc(25.5, 26.2, 2.3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Fiery corona ring
+    ctx.strokeStyle = '#fb923c';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.arc(20, 20, 14.2, 0, Math.PI * 2);
     ctx.stroke();
   });
 

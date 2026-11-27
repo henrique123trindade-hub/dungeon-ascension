@@ -304,6 +304,23 @@ export function getAscensionMultiplier(ascensionLevel: number) {
   };
 }
 
+/**
+ * Balanced low-HP damage scaling for Baldasso's "Sangue Colorado" passive.
+ * Smoothly scales as hpRatio drops from 100% down to 15%, strictly capped for balance.
+ */
+export function computeSangueColoradoBonus(hpRatio: number, level: number): {
+  damagePct: number;
+  critBonus: number;
+} {
+  if (level <= 0) return { damagePct: 0, critBonus: 0 };
+  const clampedRatio = Math.max(0.15, Math.min(1, Number.isFinite(hpRatio) ? hpRatio : 1));
+  const missingFraction = (1 - clampedRatio) / 0.85; // 0 at full HP -> 1 at <=15% HP
+  const maxBonus = Math.min(0.55, 0.32 + (level - 1) * 0.035);
+  const damagePct = Number((missingFraction * maxBonus).toFixed(3));
+  const critBonus = level >= 7 && clampedRatio <= 0.5 ? 0.08 : 0;
+  return { damagePct, critBonus };
+}
+
 export function computePlayerStats(params: {
   classId: ClassId;
   level: number;
@@ -315,6 +332,10 @@ export function computePlayerStats(params: {
   skills: Partial<Record<SkillId, number>>;
   furyActive?: boolean;
   primateFuryActive?: boolean;
+  immortalSpiritActive?: boolean;
+  muralhaColoradaActive?: boolean;
+  furiaBeiraRioActive?: boolean;
+  hpRatio?: number;
 }): ComputedPlayerStats {
   const cls = CLASSES[params.classId];
   const base = cls.baseStats;
@@ -389,6 +410,55 @@ export function computePlayerStats(params: {
   const primateMoveBonus = params.primateFuryActive ? (primateLv >= 7 ? 0.44 : primateLv >= 4 ? 0.34 : 0.24) : 0;
   const primateCritBonus = params.primateFuryActive && primateLv >= 7 ? 0.1 : 0;
 
+  // Farid Passive: Espírito Imortal (<25% HP temporary surge of damage & resistance)
+  const espLv = params.skills.espirito_imortal ?? 0;
+  const immortalSpiritDamageMult = params.immortalSpiritActive
+    ? espLv >= 7
+      ? 1.5
+      : espLv >= 4
+        ? 1.38
+        : 1.28
+    : 1;
+  const immortalSpiritDrBonus = params.immortalSpiritActive
+    ? espLv >= 7
+      ? 0.4
+      : espLv >= 4
+        ? 0.32
+        : 0.24
+    : 0;
+
+  // Baldasso Active: Muralha Colorada (red damage reduction barrier)
+  const muralhaLv = params.skills.muralha_colorada ?? 0;
+  const muralhaDrBonus = params.muralhaColoradaActive
+    ? muralhaLv >= 7
+      ? 0.56
+      : muralhaLv >= 4
+        ? 0.46
+        : 0.36
+    : 0;
+
+  // Baldasso Active: Fúria do Beira-Rio (damage + attack speed buff)
+  const beiraLv = params.skills.furia_beira_rio ?? 0;
+  const beiraDamageMult = params.furiaBeiraRioActive
+    ? beiraLv >= 7
+      ? 1.68
+      : beiraLv >= 4
+        ? 1.48
+        : 1.3
+    : 1;
+  const beiraAspdBonus = params.furiaBeiraRioActive
+    ? beiraLv >= 7
+      ? 0.65
+      : beiraLv >= 4
+        ? 0.48
+        : 0.32
+    : 0;
+  const beiraCritBonus = params.furiaBeiraRioActive && beiraLv >= 7 ? 0.12 : 0;
+
+  // Baldasso Passive: Sangue Colorado (capped low-HP damage scaling)
+  const sangueLv = params.skills.sangue_colorado ?? 0;
+  const sangueBonus = computeSangueColoradoBonus(params.hpRatio ?? 1, sangueLv);
+
   const maxHp = Math.max(
     40,
     Math.round(
@@ -404,18 +474,26 @@ export function computePlayerStats(params: {
     Math.round(
       (base.damage + eqDamageFlat) *
         levelDamageScale *
-        (1 + params.mods.damagePct + eqDamagePct + permDamagePct) *
+        (1 + params.mods.damagePct + eqDamagePct + permDamagePct + sangueBonus.damagePct) *
         params.mods.damageMult *
         evoDamageMult *
         asc.powerMult *
-        furyDamageMult
+        furyDamageMult *
+        immortalSpiritDamageMult *
+        beiraDamageMult
     )
   );
 
   const attackSpeed = Math.min(
     8.5,
     base.attackSpeed *
-      (1 + params.mods.attackSpeedPct + eqAttackSpeedPct + evoAspdBonus + furyAspdBonus + primateAspdBonus) *
+      (1 +
+        params.mods.attackSpeedPct +
+        eqAttackSpeedPct +
+        evoAspdBonus +
+        furyAspdBonus +
+        primateAspdBonus +
+        beiraAspdBonus) *
       params.mods.attackSpeedMult
   );
 
@@ -426,12 +504,21 @@ export function computePlayerStats(params: {
 
   const critChance = Math.min(
     0.92,
-    base.critChance + params.mods.critChance + eqCritChance + evoCritBonus + furyCritBonus + primateCritBonus
+    base.critChance +
+      params.mods.critChance +
+      eqCritChance +
+      evoCritBonus +
+      furyCritBonus +
+      primateCritBonus +
+      beiraCritBonus +
+      sangueBonus.critBonus
   );
 
   const critDamage = base.critDamage + params.mods.critDamage + eqCritDamage;
   const armor = Math.round(base.armor + params.mods.armorFlat + eqArmor + permArmor);
-  const damageReduction = Math.min(pb.maxDamageReduction, armor / (armor + pb.armorSoftCap));
+  const armorDr = Math.min(pb.maxDamageReduction, armor / (armor + pb.armorSoftCap));
+  const combinedDr = 1 - (1 - armorDr) * (1 - immortalSpiritDrBonus) * (1 - muralhaDrBonus);
+  const damageReduction = Math.min(0.84, combinedDr);
   const dodge = Math.min(pb.maxDodge, base.dodge + params.mods.dodge + eqDodge);
   const lifeSteal = Math.min(pb.maxLifeSteal, params.mods.lifeSteal + eqLifeSteal + vampiricBonus + lifeDrainPassive);
   const range = Math.round(base.range * (1 + params.mods.rangePct));
@@ -979,7 +1066,11 @@ export function createStarterWeapon(classId: ClassId): EquipmentItem {
     stats: {
       damage: 4,
       damagePct: 0.03,
-      critChance: classId === 'assassin' || classId === 'archer' || classId === 'slatt' ? 0.02 : undefined,
+      critChance:
+        classId === 'assassin' || classId === 'archer' || classId === 'slatt' || classId === 'baldasso'
+          ? 0.02
+          : undefined,
+      armor: classId === 'farid' ? 2 : undefined,
     },
     sellValue: 12,
   };

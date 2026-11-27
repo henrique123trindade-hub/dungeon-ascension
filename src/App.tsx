@@ -400,7 +400,7 @@ export default function App() {
     (rawCode: string): RedeemCodeResult => {
       const result = redeemSecretCode(saveRef.current, rawCode);
       if (result.status === 'success') {
-        audioEngine.playSecretUnlock();
+        audioEngine.playSecretUnlock(result.codeDef?.theme);
         updateSave(() => result.save);
       } else {
         audioEngine.playUiClick();

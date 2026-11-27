@@ -12,6 +12,7 @@ import {
   COMBO_WINDOW_SEC,
   computeComboMultiplier,
   computePlayerStats,
+  computeSangueColoradoBonus,
   createEmptyModifiers,
   createStarterWeapon,
   FloorWavePlan,
@@ -159,13 +160,23 @@ interface GroundHazard {
   fromPlayer: boolean;
   damage: number;
   color: number;
-  kind: 'meteor' | 'boss_aoe' | 'mage_circle' | 'black_hole' | 'fire_tornado' | 'banana_peel' | 'banana_rain';
+  kind:
+    | 'meteor'
+    | 'boss_aoe'
+    | 'mage_circle'
+    | 'black_hole'
+    | 'fire_tornado'
+    | 'banana_peel'
+    | 'banana_rain'
+    | 'gloria_ball'
+    | 'inferno_colorado';
   duration: number;
   tickTimer: number;
   triggered: boolean;
   sprite?: Phaser.GameObjects.Sprite;
   slowFactor?: number;
   triggeredEnemies?: Set<number>;
+  lv?: number;
 }
 
 interface PickupEntity {
@@ -266,6 +277,13 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
   // Buffs & Floor state
   private furyTimer = 0;
   private primateFuryTimer = 0;
+  private immortalShieldTimer = 0;
+  private immortalShieldAmount = 0;
+  private immortalSpiritTimer = 0;
+  private immortalSpiritCooldown = 0;
+  private muralhaTimer = 0;
+  private furiaBeiraRioTimer = 0;
+  private lastHpRatioBucket = 20;
   private swiftKillTimer = 0;
   private playerSlowTimer = 0;
   private invulnTimer = 0;
@@ -665,6 +683,9 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     this.stopRun();
 
     this.classId = classId;
+    if (classId === 'farid') {
+      audioEngine.preloadFaridVoice();
+    }
     this.permanentUpgrades = { ...save.permanentUpgrades };
     this.ascensionLevel = save.ascensionLevel;
     this.bestFloorRecord = save.bestFloor;
@@ -690,6 +711,13 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     this.postModalClickSuppressTimer = 0;
     this.furyTimer = 0;
     this.primateFuryTimer = 0;
+    this.immortalShieldTimer = 0;
+    this.immortalShieldAmount = 0;
+    this.immortalSpiritTimer = 0;
+    this.immortalSpiritCooldown = 0;
+    this.muralhaTimer = 0;
+    this.furiaBeiraRioTimer = 0;
+    this.lastHpRatioBucket = 20;
     this.swiftKillTimer = 0;
     this.playerSlowTimer = 0;
     this.invulnTimer = 0.6;
@@ -787,6 +815,10 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
 
   private recomputeStats(healFull = false) {
     const prevMax = this.computedStats?.maxHp ?? 100;
+    const hpRatio =
+      this.computedStats && !healFull
+        ? Phaser.Math.Clamp(this.hp / Math.max(1, this.computedStats.maxHp), 0, 1)
+        : 1;
     this.computedStats = computePlayerStats({
       classId: this.classId,
       level: this.level,
@@ -798,6 +830,10 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
       skills: this.skills,
       furyActive: this.furyTimer > 0,
       primateFuryActive: this.primateFuryTimer > 0,
+      immortalSpiritActive: this.immortalSpiritTimer > 0,
+      muralhaColoradaActive: this.muralhaTimer > 0,
+      furiaBeiraRioActive: this.furiaBeiraRioTimer > 0,
+      hpRatio,
     });
     if (healFull) {
       this.hp = this.computedStats.maxHp;
@@ -1499,6 +1535,93 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
       }
     }
 
+    // Farid temporary Imortal shield expiration
+    if (this.immortalShieldTimer > 0) {
+      this.immortalShieldTimer = Math.max(0, this.immortalShieldTimer - dt);
+      if (this.immortalShieldTimer <= 0 && this.immortalShieldAmount > 0) {
+        this.shield = Math.max(0, this.shield - this.immortalShieldAmount);
+        this.immortalShieldAmount = 0;
+      }
+    }
+
+    // Farid passive Espírito Imortal buff & cooldown
+    if (this.immortalSpiritCooldown > 0) {
+      this.immortalSpiritCooldown = Math.max(0, this.immortalSpiritCooldown - dt);
+    }
+    const prevImmortalSpirit = this.immortalSpiritTimer > 0;
+    if (this.immortalSpiritTimer > 0) {
+      this.immortalSpiritTimer = Math.max(0, this.immortalSpiritTimer - dt);
+      if (Math.random() < 0.36 && this.settings.graphicsQuality !== 'low') {
+        const a = Math.random() * Math.PI * 2;
+        const r = 18 + Math.random() * 10;
+        this.spawnParticle(
+          this.player.x + Math.cos(a) * r,
+          this.player.y + Math.sin(a) * r * 0.85,
+          Math.cos(a) * 16,
+          -30 - Math.random() * 20,
+          0x38bdf8,
+          0.28,
+          0.54
+        );
+      }
+      if (prevImmortalSpirit && this.immortalSpiritTimer <= 0) {
+        this.recomputeStats(false);
+      }
+    }
+
+    // Baldasso E — Muralha Colorada timer
+    const prevMuralha = this.muralhaTimer > 0;
+    if (this.muralhaTimer > 0) {
+      this.muralhaTimer = Math.max(0, this.muralhaTimer - dt);
+      if (Math.random() < 0.28 && this.settings.graphicsQuality !== 'low') {
+        const a = Math.random() * Math.PI * 2;
+        const r = 22 + Math.random() * 6;
+        this.spawnParticle(
+          this.player.x + Math.cos(a) * r,
+          this.player.y + Math.sin(a) * r * 0.85,
+          Math.cos(a) * 12,
+          -20 - Math.random() * 16,
+          0xf87171,
+          0.24,
+          0.46
+        );
+      }
+      if (prevMuralha && this.muralhaTimer <= 0) {
+        this.recomputeStats(false);
+      }
+    }
+
+    // Baldasso R — Fúria do Beira-Rio timer
+    const prevFuriaBeiraRio = this.furiaBeiraRioTimer > 0;
+    if (this.furiaBeiraRioTimer > 0) {
+      this.furiaBeiraRioTimer = Math.max(0, this.furiaBeiraRioTimer - dt);
+      if (Math.random() < 0.36 && this.settings.graphicsQuality !== 'low') {
+        const a = Math.random() * Math.PI * 2;
+        const r = 20 + Math.random() * 10;
+        this.spawnParticle(
+          this.player.x + Math.cos(a) * r,
+          this.player.y + Math.sin(a) * r * 0.85,
+          Math.cos(a) * 18,
+          -34 - Math.random() * 22,
+          Math.random() < 0.5 ? 0xef4444 : 0xf97316,
+          0.26,
+          0.52
+        );
+      }
+      if (prevFuriaBeiraRio && this.furiaBeiraRioTimer <= 0) {
+        this.recomputeStats(false);
+      }
+    }
+
+    // Baldasso Passive — Sangue Colorado dynamic HP ratio sync (for regen/potions)
+    if ((this.skills.sangue_colorado ?? 0) > 0 && this.computedStats) {
+      const bucket = Math.round(Phaser.Math.Clamp(this.hp / Math.max(1, this.computedStats.maxHp), 0, 1) * 20);
+      if (bucket !== this.lastHpRatioBucket) {
+        this.lastHpRatioBucket = bucket;
+        this.recomputeStats(false);
+      }
+    }
+
     // Skill cooldown ticks
     for (const key of Object.keys(this.skillCooldowns) as SkillId[]) {
       const rem = this.skillCooldowns[key] ?? 0;
@@ -1648,11 +1771,30 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     }
     if (this.playerShadowGlow) {
       this.playerShadowGlow.setPosition(this.player.x, this.player.y);
-      this.playerShadowGlow.setAlpha(this.furyTimer > 0 || this.primateFuryTimer > 0 ? 0.48 : 0.22);
+      const empowered =
+        this.furyTimer > 0 ||
+        this.primateFuryTimer > 0 ||
+        this.immortalSpiritTimer > 0 ||
+        this.furiaBeiraRioTimer > 0 ||
+        this.muralhaTimer > 0;
+      this.playerShadowGlow.setAlpha(empowered ? 0.36 : 0.22);
     }
     if (this.playerShieldRing) {
       this.playerShieldRing.setPosition(this.player.x, this.player.y);
-      this.playerShieldRing.setVisible(this.shield > 0);
+      const showRing = this.shield > 0 || this.muralhaTimer > 0;
+      this.playerShieldRing.setVisible(showRing);
+      if (showRing) {
+        if (this.muralhaTimer > 0) {
+          this.playerShieldRing.setFillStyle(0xdc2626, 0.14);
+          this.playerShieldRing.setStrokeStyle(2.6, 0xf87171, 0.88);
+        } else if (this.immortalShieldTimer > 0 && this.immortalShieldAmount > 0) {
+          this.playerShieldRing.setFillStyle(0x0ea5e9, 0.14);
+          this.playerShieldRing.setStrokeStyle(2.4, 0x38bdf8, 0.88);
+        } else {
+          this.playerShieldRing.setFillStyle(0xeab308, 0.08);
+          this.playerShieldRing.setStrokeStyle(2, 0xfacc15, 0.78);
+        }
+      }
     }
 
     // Basic Attack: manual LMB/Mobile aims straight at cursor; Auto-Attack fires at locked in-range target
@@ -1828,7 +1970,11 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
             ? 'proj_soul'
             : basicSpec.style === 'banana_toss'
               ? 'proj_banana'
-              : 'proj_arrow';
+              : basicSpec.style === 'tricolor_ball'
+                ? 'proj_ball_blue'
+                : basicSpec.style === 'colorado_ball'
+                  ? 'proj_ball_red'
+                  : 'proj_arrow';
 
     audioEngine.playAttack(
       basicSpec.style === 'twin_dagger'
@@ -1837,13 +1983,22 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
           ? 'bow'
           : basicSpec.style === 'banana_toss'
             ? 'banana'
-            : 'arcane'
+            : basicSpec.style === 'tricolor_ball'
+              ? 'ball_blue'
+              : basicSpec.style === 'colorado_ball'
+                ? 'ball_red'
+                : 'arcane'
     );
 
     const speed = basicSpec.speed;
     const life = basicSpec.life;
     const spread = basicSpec.spread;
-    const spinSpeed = basicSpec.style === 'banana_toss' ? 14 : 0;
+    const spinSpeed =
+      basicSpec.style === 'banana_toss'
+        ? 14
+        : basicSpec.style === 'tricolor_ball' || basicSpec.style === 'colorado_ball'
+          ? 12
+          : 0;
 
     for (let i = 0; i < projCount; i++) {
       const offset = projCount === 1 ? 0 : -spread / 2 + (spread / (projCount - 1)) * i;
@@ -2013,8 +2168,26 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
       skillId === 'banana_rain'
     ) {
       audioEngine.playSlattSkill(skillId);
+    } else if (
+      skillId === 'chute_tricolor' ||
+      skillId === 'imortal_shield' ||
+      skillId === 'avalanche_tricolor' ||
+      skillId === 'gloria_imortal'
+    ) {
+      audioEngine.playFaridSkill(skillId);
+    } else if (
+      skillId === 'chute_colorado' ||
+      skillId === 'muralha_colorada' ||
+      skillId === 'furia_beira_rio' ||
+      skillId === 'inferno_colorado'
+    ) {
+      audioEngine.playBaldassoSkill(skillId);
     } else {
       audioEngine.playSkill(def.element);
+    }
+
+    if (this.classId === 'farid') {
+      audioEngine.playFaridSkillVoice();
     }
 
     switch (skillId) {
@@ -2328,7 +2501,236 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
         }
         break;
       }
+      case 'chute_tricolor': {
+        for (const offset of spec.rayAngles) {
+          this.spawnPlayerProjectile(
+            aim + offset,
+            'proj_ball_tricolor_heavy',
+            spec.speed,
+            baseDmg,
+            spec.life,
+            spec.pierce,
+            0,
+            spec.color,
+            lv >= 7 ? 0.3 : 0,
+            15
+          );
+        }
+        this.shakeTrauma = Math.max(this.shakeTrauma, 0.22);
+        break;
+      }
+      case 'imortal_shield': {
+        const shieldPct = lv >= 7 ? 0.6 : lv >= 4 ? 0.46 : 0.34;
+        const shieldDur = lv >= 7 ? 9.0 : lv >= 4 ? 8.0 : 7.0;
+        const grant = Math.round(this.computedStats.maxHp * shieldPct);
+        this.shield += grant;
+        this.immortalShieldAmount += grant;
+        this.immortalShieldTimer = Math.max(this.immortalShieldTimer, shieldDur);
+
+        this.spawnBurst(this.player.x, this.player.y, 0x38bdf8, 22, 165);
+        const shieldPulse = this.add
+          .circle(this.player.x, this.player.y, 20, 0x0ea5e9, 0.22)
+          .setStrokeStyle(2.8, 0x7dd3fc, 0.92)
+          .setDepth(64);
+        this.tweens.add({
+          targets: shieldPulse,
+          scale: 3.1,
+          alpha: 0,
+          duration: 320,
+          ease: 'Cubic.Out',
+          onComplete: () => shieldPulse.destroy(),
+        });
+
+        if (lv >= 4) {
+          for (const e of this.enemies) {
+            if (e.dying) continue;
+            const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, e.sprite.x, e.sprite.y);
+            if (d <= 135 + e.radius) {
+              const pushAng = Phaser.Math.Angle.Between(this.player.x, this.player.y, e.sprite.x, e.sprite.y);
+              const kbResist = e.bossDef ? 0.55 : e.archetypeId === 'golem' ? 0.45 : 0;
+              const force = 280 * (1 - kbResist);
+              e.knockVx += Math.cos(pushAng) * force;
+              e.knockVy += Math.sin(pushAng) * force;
+            }
+          }
+        }
+        this.pushNotice(`IMORTAL (+${grant} ESCUDO)!`, 'gold');
+        break;
+      }
+      case 'avalanche_tricolor': {
+        const triggerAvalancheWave = (dmgMult: number, pushScale: number) => {
+          const r = spec.radius;
+          this.triggerRadialAoE(this.player.x, this.player.y, r, baseDmg * dmgMult, 0x0ea5e9, 0);
+          const waveRing = this.add
+            .circle(this.player.x, this.player.y, 18, 0x0ea5e9, 0.16)
+            .setStrokeStyle(3.2, 0xf8fafc, 0.9)
+            .setDepth(63);
+          this.tweens.add({
+            targets: waveRing,
+            scale: Math.max(2, r / 18),
+            alpha: 0,
+            duration: 340,
+            ease: 'Cubic.Out',
+            onComplete: () => waveRing.destroy(),
+          });
+          const baseForce = (lv >= 7 ? 470 : lv >= 4 ? 410 : 350) * pushScale;
+          for (const e of this.enemies) {
+            if (e.dying) continue;
+            const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, e.sprite.x, e.sprite.y);
+            if (d <= r + e.radius) {
+              const ang = Phaser.Math.Angle.Between(this.player.x, this.player.y, e.sprite.x, e.sprite.y);
+              const kbResist = e.bossDef ? 0.55 : e.archetypeId === 'golem' ? 0.45 : 0;
+              const kb = baseForce * (1 - kbResist * 0.72);
+              e.knockVx += Math.cos(ang) * kb;
+              e.knockVy += Math.sin(ang) * kb;
+              if (lv >= 4) {
+                e.slowTimer = Math.max(e.slowTimer, 2.2);
+                e.slowFactor = Math.min(e.slowFactor, e.bossDef ? 0.7 : 0.5);
+              }
+            }
+          }
+          this.shakeTrauma = Math.max(this.shakeTrauma, 0.34);
+        };
+        triggerAvalancheWave(1.0, 1.0);
+        if (lv >= 7) {
+          this.time.delayedCall(220, () => {
+            if (!this.isActiveRun || this.isEndingRun || !this.player?.active) return;
+            triggerAvalancheWave(0.55, 0.72);
+          });
+        }
+        break;
+      }
+      case 'gloria_imortal': {
+        const zoneX = evalCast.targetPoint.x;
+        const zoneY = evalCast.targetPoint.y;
+        const inZone = this.enemies.filter(
+          (e) => !e.dying && Phaser.Math.Distance.Between(zoneX, zoneY, e.sprite.x, e.sprite.y) <= spec.radius + e.radius
+        );
+        for (let i = 0; i < spec.count; i++) {
+          let tx: number;
+          let ty: number;
+          if (inZone.length > 0 && i < inZone.length * 2) {
+            const target = inZone[i % inZone.length];
+            tx = target.sprite.x + (Math.random() - 0.5) * 28;
+            ty = target.sprite.y + (Math.random() - 0.5) * 28;
+          } else {
+            const ang = (Math.PI * 2 * i) / Math.max(1, spec.count) + Math.random() * 0.55;
+            const dist = Math.random() * Math.max(24, spec.radius - spec.subRadius * 0.45);
+            tx = zoneX + Math.cos(ang) * dist;
+            ty = zoneY + Math.sin(ang) * dist;
+          }
+          tx = Phaser.Math.Clamp(tx, 76, this.roomWidth - 76);
+          ty = Phaser.Math.Clamp(ty, 76, this.roomHeight - 76);
+          const delay = 0.34 + i * 0.085;
+
+          const fallingBall = this.add
+            .sprite(tx, ty - 250, 'proj_ball_tricolor_heavy')
+            .setDepth(68)
+            .setScale(1.06)
+            .setAlpha(0.96);
+          this.tweens.add({
+            targets: fallingBall,
+            y: ty,
+            rotation: Math.PI * 3.8,
+            duration: Math.max(120, Math.round(delay * 1000)),
+            ease: 'Quad.In',
+            onComplete: () => {
+              if (fallingBall.active) fallingBall.destroy();
+            },
+          });
+
+          this.hazards.push({
+            x: tx,
+            y: ty,
+            radius: spec.subRadius,
+            delay,
+            maxDelay: delay,
+            fromPlayer: true,
+            damage: baseDmg,
+            color: spec.color,
+            kind: 'gloria_ball',
+            duration: 0,
+            tickTimer: 0,
+            triggered: false,
+            sprite: fallingBall,
+          });
+        }
+        break;
+      }
+      case 'chute_colorado': {
+        for (const offset of spec.rayAngles) {
+          this.spawnPlayerProjectile(
+            aim + offset,
+            'proj_ball_fire',
+            spec.speed,
+            baseDmg,
+            spec.life,
+            spec.pierce,
+            spec.explosiveRadius,
+            spec.color,
+            lv >= 7 ? 0.3 : 0,
+            15
+          );
+        }
+        this.shakeTrauma = Math.max(this.shakeTrauma, 0.22);
+        break;
+      }
+      case 'muralha_colorada': {
+        this.muralhaTimer = lv >= 7 ? 8.5 : lv >= 4 ? 7.0 : 5.5;
+        this.recomputeStats(false);
+        this.spawnBurst(this.player.x, this.player.y, 0xef4444, 22, 165);
+        const wallPulse = this.add
+          .circle(this.player.x, this.player.y, 20, 0xdc2626, 0.22)
+          .setStrokeStyle(3, 0xf8fafc, 0.9)
+          .setDepth(64);
+        this.tweens.add({
+          targets: wallPulse,
+          scale: 3.0,
+          alpha: 0,
+          duration: 300,
+          ease: 'Cubic.Out',
+          onComplete: () => wallPulse.destroy(),
+        });
+        if (lv >= 4) {
+          this.triggerRadialAoE(this.player.x, this.player.y, 130, baseDmg, 0xef4444, 0);
+        }
+        this.pushNotice('MURALHA COLORADA ATIVADA!', 'crimson');
+        break;
+      }
+      case 'furia_beira_rio': {
+        this.furiaBeiraRioTimer = lv >= 7 ? 8.5 : lv >= 4 ? 7.0 : 5.5;
+        this.recomputeStats(false);
+        this.shakeTrauma = Math.max(this.shakeTrauma, 0.3);
+        this.spawnBurst(this.player.x, this.player.y, 0xdc2626, 22, 185);
+        this.spawnBurst(this.player.x, this.player.y, 0xf97316, 12, 145);
+        this.pushNotice('FÚRIA DO BEIRA-RIO!', 'crimson');
+        break;
+      }
+      case 'inferno_colorado': {
+        const zoneX = Phaser.Math.Clamp(evalCast.targetPoint.x, 84, this.roomWidth - 84);
+        const zoneY = Phaser.Math.Clamp(evalCast.targetPoint.y, 84, this.roomHeight - 84);
+        const dur = lv >= 7 ? 6.5 : lv >= 4 ? 5.5 : 4.5;
+        this.spawnBurst(zoneX, zoneY, 0xf97316, 22, 180);
+        this.shakeTrauma = Math.max(this.shakeTrauma, 0.28);
+        this.hazards.push({
+          x: zoneX,
+          y: zoneY,
+          radius: spec.radius,
+          delay: 0,
+          maxDelay: 0.1,
+          fromPlayer: true,
+          damage: baseDmg,
+          color: spec.color,
+          kind: 'inferno_colorado',
+          duration: dur,
+          tickTimer: 0.18,
+          triggered: true,
+          lv,
+        });
+        break;
+      }
     }
+    this.emitHudSnapshot(true);
   }
 
   private updateTargetingOverlay(dt: number) {
@@ -3268,7 +3670,11 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
             key === 'proj_boss_orb' ||
             key === 'proj_arcane' ||
             key === 'proj_banana' ||
-            key === 'proj_banana_bomb') &&
+            key === 'proj_banana_bomb' ||
+            key === 'proj_ball_blue' ||
+            key === 'proj_ball_tricolor_heavy' ||
+            key === 'proj_ball_red' ||
+            key === 'proj_ball_fire') &&
           Math.random() < (this.settings.graphicsQuality === 'high' ? 0.55 : 0.28)
         ) {
           this.spawnParticle(
@@ -3401,9 +3807,16 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
               h.sprite?.destroy();
               h.sprite = undefined;
               audioEngine.playSlattSkill('banana_bomb');
+            } else if (h.kind === 'gloria_ball') {
+              h.sprite?.destroy();
+              h.sprite = undefined;
+              audioEngine.playFaridSkill('chute_tricolor');
             }
             this.triggerRadialAoE(h.x, h.y, h.radius, h.damage, h.color, 0);
-            this.shakeTrauma = Math.max(this.shakeTrauma, h.kind === 'banana_rain' ? 0.18 : 0.25);
+            this.shakeTrauma = Math.max(
+              this.shakeTrauma,
+              h.kind === 'banana_rain' || h.kind === 'gloria_ball' ? 0.18 : 0.25
+            );
           } else {
             this.spawnBurst(h.x, h.y, h.color, 18, 160);
             if (Phaser.Math.Distance.Between(h.x, h.y, this.player.x, this.player.y) <= h.radius + 14) {
@@ -3416,7 +3829,7 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
           }
         }
       } else {
-        // Ongoing hazard (Black Hole / Fire Tornado / Banana Peel)
+        // Ongoing hazard (Black Hole / Fire Tornado / Banana Peel / Inferno Colorado)
         h.duration -= dt;
         h.tickTimer -= dt;
 
@@ -3442,10 +3855,24 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
           if (h.sprite && h.duration < 1.2) {
             h.sprite.setAlpha(Math.max(0.25, h.duration / 1.2));
           }
+        } else if (h.kind === 'inferno_colorado') {
+          if (this.settings.graphicsQuality !== 'low' && Math.random() < 0.65) {
+            const a = Math.random() * Math.PI * 2;
+            const r = Math.sqrt(Math.random()) * h.radius * 0.92;
+            this.spawnParticle(
+              h.x + Math.cos(a) * r,
+              h.y + Math.sin(a) * r,
+              (Math.random() - 0.5) * 26,
+              -42 - Math.random() * 44,
+              Math.random() < 0.5 ? 0xef4444 : 0xf97316,
+              0.38,
+              0.78
+            );
+          }
         }
 
         if (h.tickTimer <= 0) {
-          h.tickTimer = h.kind === 'banana_peel' ? 0.26 : 0.28;
+          h.tickTimer = h.kind === 'banana_peel' ? 0.26 : h.kind === 'inferno_colorado' ? 0.32 : 0.28;
           for (const e of this.enemies) {
             if (e.dying) continue;
             if (Phaser.Math.Distance.Between(e.sprite.x, e.sprite.y, h.x, h.y) <= h.radius + e.radius) {
@@ -3462,6 +3889,8 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
                 } else {
                   this.damageEnemy(e, h.damage * 0.2, 0, false);
                 }
+              } else if (h.kind === 'inferno_colorado') {
+                this.damageEnemy(e, h.damage * 0.45, 0, false);
               } else {
                 this.damageEnemy(e, h.damage * 0.42, 0, false);
               }
@@ -3485,6 +3914,9 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
               );
               this.shakeTrauma = Math.max(this.shakeTrauma, isSupernova ? 0.55 : 0.35);
             }
+          } else if (h.kind === 'inferno_colorado' && (h.lv ?? 1) >= 7) {
+            this.triggerRadialAoE(h.x, h.y, h.radius * 1.12, h.damage * 1.8, 0xf97316, 0);
+            this.shakeTrauma = Math.max(this.shakeTrauma, 0.42);
           }
           h.sprite?.destroy();
           this.hazards.splice(i, 1);
@@ -3794,12 +4226,16 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
       attacker.hp = Math.min(attacker.maxHp, attacker.hp + Math.round(reduced * 1.4));
     }
 
-    // Thorns equipment reflection
+    // Thorns equipment reflection + Baldasso Muralha Colorada Lv.7 counter-burn
     if (attacker && !attacker.dying) {
       for (const item of Object.values(this.equipped)) {
         if (item?.specialEffect?.id === 'thorns') {
           this.damageEnemy(attacker, reduced * item.specialEffect.value, 0, false);
         }
+      }
+      if (this.muralhaTimer > 0 && (this.skills.muralha_colorada ?? 0) >= 7) {
+        this.damageEnemy(attacker, this.computedStats.damage * 0.85, 0, false);
+        this.spawnBurst(attacker.sprite.x, attacker.sprite.y, 0xf97316, 7, 110);
       }
     }
 
@@ -3807,6 +4243,9 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     if (this.shield > 0) {
       const absorbed = Math.min(this.shield, remaining);
       this.shield -= absorbed;
+      if (this.immortalShieldAmount > 0) {
+        this.immortalShieldAmount = Math.max(0, this.immortalShieldAmount - absorbed);
+      }
       remaining -= absorbed;
       if (this.shield <= 0 && (this.skills.divine_shield ?? 0) >= 4) {
         this.triggerRadialAoE(this.player.x, this.player.y, 130, this.computedStats.damage * 1.65, 0xfacc15, 0);
@@ -3843,6 +4282,55 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
 
     if (this.hp <= 0) {
       this.handlePlayerDeath();
+    } else {
+      const hpRatio = this.hp / Math.max(1, this.computedStats.maxHp);
+
+      // Farid Passive: Espírito Imortal — triggers below 25% HP for resistance + damage surge
+      const spiritLv = this.skills.espirito_imortal ?? 0;
+      if (spiritLv > 0 && this.immortalSpiritCooldown <= 0 && hpRatio < 0.25) {
+        this.immortalSpiritTimer = spiritLv >= 7 ? 9.0 : spiritLv >= 4 ? 7.5 : 6.0;
+        this.immortalSpiritCooldown = spiritLv >= 7 ? 14.0 : 16.0;
+        if (spiritLv >= 7) {
+          const heal = Math.round(this.computedStats.maxHp * 0.1);
+          this.hp = Math.min(this.computedStats.maxHp, this.hp + heal);
+          this.spawnDamageText(this.player.x, this.player.y - 44, `+${heal}`, '#38bdf8', false);
+        }
+        if (spiritLv >= 4) {
+          for (const e of this.enemies) {
+            if (e.dying) continue;
+            const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, e.sprite.x, e.sprite.y);
+            if (d <= 165 + e.radius) {
+              const ang = Phaser.Math.Angle.Between(this.player.x, this.player.y, e.sprite.x, e.sprite.y);
+              const kbResist = e.bossDef ? 0.55 : e.archetypeId === 'golem' ? 0.45 : 0;
+              const kb = 320 * (1 - kbResist);
+              e.knockVx += Math.cos(ang) * kb;
+              e.knockVy += Math.sin(ang) * kb;
+            }
+          }
+        }
+        audioEngine.playFaridSkill('espirito_imortal');
+        this.spawnBurst(this.player.x, this.player.y, 0x38bdf8, 24, 195);
+        const spiritRing = this.add
+          .circle(this.player.x, this.player.y, 20, 0x0ea5e9, 0.22)
+          .setStrokeStyle(3, 0xf8fafc, 0.92)
+          .setDepth(65);
+        this.tweens.add({
+          targets: spiritRing,
+          scale: 3.4,
+          alpha: 0,
+          duration: 340,
+          ease: 'Cubic.Out',
+          onComplete: () => spiritRing.destroy(),
+        });
+        this.recomputeStats(false);
+        this.pushNotice('ESPÍRITO IMORTAL DESPERTADO!', 'gold');
+      }
+
+      // Baldasso Passive: Sangue Colorado — immediately scale damage on HP drop
+      if ((this.skills.sangue_colorado ?? 0) > 0) {
+        this.lastHpRatioBucket = Math.round(Phaser.Math.Clamp(hpRatio, 0, 1) * 20);
+        this.recomputeStats(false);
+      }
     }
   }
 
@@ -4566,6 +5054,15 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
         g.lineStyle(1.4, 0xfde047, pulseAlpha);
         g.fillCircle(h.x, h.y, h.radius);
         g.strokeCircle(h.x, h.y, h.radius);
+      } else if (h.kind === 'inferno_colorado') {
+        const fade = h.duration < 0.8 ? Math.max(0.2, h.duration / 0.8) : 1;
+        const pulse = 0.88 + Math.sin(this.elapsedSec * 10) * 0.12;
+        g.fillStyle(0xdc2626, 0.22 * fade);
+        g.lineStyle(3.2, 0xf97316, 0.92 * fade);
+        g.fillCircle(h.x, h.y, h.radius);
+        g.strokeCircle(h.x, h.y, h.radius);
+        g.lineStyle(1.8, 0xfef08a, 0.58 * fade);
+        g.strokeCircle(h.x, h.y, h.radius * 0.62 * pulse);
       }
     }
   }
@@ -4768,10 +5265,29 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     if (this.mods.xpMult > 1) activeMultipliers.push({ label: 'EXP', value: `×${this.mods.xpMult}` });
     if (this.mods.goldMult > 1) activeMultipliers.push({ label: 'Ouro', value: `×${this.mods.goldMult}` });
     if (this.mods.bossDamageMult > 1) activeMultipliers.push({ label: 'Chefes', value: `×${this.mods.bossDamageMult}` });
+    const scLv = this.skills.sangue_colorado ?? 0;
+    if (scLv > 0 && this.computedStats) {
+      const scBonus = computeSangueColoradoBonus(this.hp / Math.max(1, this.computedStats.maxHp), scLv);
+      if (scBonus.damagePct >= 0.02) {
+        activeMultipliers.push({ label: 'Sangue', value: `+${Math.round(scBonus.damagePct * 100)}%` });
+      }
+    }
 
     const activeBuffs: Array<{ label: string; remainingSec: number; color: string }> = [];
     if (this.furyTimer > 0) activeBuffs.push({ label: 'Fúria Demoníaca', remainingSec: this.furyTimer, color: '#dc2626' });
     if (this.primateFuryTimer > 0) activeBuffs.push({ label: 'Fúria Primata', remainingSec: this.primateFuryTimer, color: '#f59e0b' });
+    if (this.immortalShieldTimer > 0 && this.immortalShieldAmount > 0) {
+      activeBuffs.push({ label: 'Imortal', remainingSec: this.immortalShieldTimer, color: '#38bdf8' });
+    }
+    if (this.immortalSpiritTimer > 0) {
+      activeBuffs.push({ label: 'Espírito Imortal', remainingSec: this.immortalSpiritTimer, color: '#0ea5e9' });
+    }
+    if (this.muralhaTimer > 0) {
+      activeBuffs.push({ label: 'Muralha Colorada', remainingSec: this.muralhaTimer, color: '#f87171' });
+    }
+    if (this.furiaBeiraRioTimer > 0) {
+      activeBuffs.push({ label: 'Fúria Beira-Rio', remainingSec: this.furiaBeiraRioTimer, color: '#dc2626' });
+    }
     if (this.swiftKillTimer > 0) activeBuffs.push({ label: 'Ímpeto', remainingSec: this.swiftKillTimer, color: '#38bdf8' });
     if (this.playerSlowTimer > 0) activeBuffs.push({ label: 'Congelado', remainingSec: this.playerSlowTimer, color: '#22d3ee' });
 

@@ -58,7 +58,15 @@ export type IndicatorShape =
   | 'chain';
 
 export interface BasicAttackSpec {
-  style: 'melee_cleave' | 'twin_dagger' | 'arcane_bolt' | 'soul_orb' | 'multi_arrow' | 'banana_toss';
+  style:
+    | 'melee_cleave'
+    | 'twin_dagger'
+    | 'arcane_bolt'
+    | 'soul_orb'
+    | 'multi_arrow'
+    | 'banana_toss'
+    | 'tricolor_ball'
+    | 'colorado_ball';
   shape: 'cone' | 'projectile';
   range: number;
   halfAngle: number; // radians (for cone)
@@ -359,11 +367,15 @@ export function computeBasicAttackSpec(
   const speed =
     cls.attackStyle === 'multi_arrow'
       ? 660
-      : cls.attackStyle === 'twin_dagger'
-        ? 590
-        : cls.attackStyle === 'banana_toss'
-          ? 575
-          : 510;
+      : cls.attackStyle === 'tricolor_ball'
+        ? 600
+        : cls.attackStyle === 'twin_dagger'
+          ? 590
+          : cls.attackStyle === 'colorado_ball'
+            ? 580
+            : cls.attackStyle === 'banana_toss'
+              ? 575
+              : 510;
   const life = Math.max(0.32, stats.range / speed);
   const effectiveRange = PROJECTILE_SPAWN_OFFSET + speed * life;
   const spread = projCount === 1 ? 0 : Math.min(0.45, 0.13 * (projCount - 1));
@@ -682,6 +694,142 @@ export function computeSkillGeometrySpec(
         shape: 'aura',
         radius: 76,
         castRange: 76,
+      };
+    }
+
+    case 'chute_tricolor': {
+      const count = lv >= 4 ? 3 : 1;
+      const rayAngles: number[] = [];
+      for (let i = 0; i < count; i++) {
+        rayAngles.push(count === 1 ? 0 : (i - 1) * 0.2);
+      }
+      const speed = 640;
+      const life = 1.15 * (1 + Math.max(0, mods.rangePct) * 0.25);
+      const pierce = (lv >= 7 ? 9 : lv >= 4 ? 6 : 4) + stats.piercing;
+      return {
+        ...base,
+        shape: 'line',
+        speed,
+        life,
+        halfWidth: 18,
+        range: PROJECTILE_SPAWN_OFFSET + speed * life,
+        rayAngles,
+        count,
+        pierce,
+        explosiveRadius: 0,
+      };
+    }
+
+    case 'imortal_shield': {
+      const radius = Math.round((lv >= 7 ? 132 : lv >= 4 ? 112 : 92) * Math.min(1.25, 0.9 + rangeScale * 0.1));
+      return {
+        ...base,
+        shape: 'aura',
+        radius,
+        castRange: radius,
+      };
+    }
+
+    case 'avalanche_tricolor': {
+      const radius = Math.round((lv >= 7 ? 245 : lv >= 4 ? 210 : 172) * (1 + Math.max(0, mods.rangePct) * 0.18));
+      return {
+        ...base,
+        shape: 'aura',
+        radius,
+        castRange: radius,
+      };
+    }
+
+    case 'gloria_imortal': {
+      const count = lv >= 7 ? 13 : lv >= 4 ? 9 : 6;
+      const castRange = Math.round(400 * (1 + Math.max(0, mods.rangePct) * 0.25));
+      const zoneRadius = Math.round(
+        (lv >= 7 ? 210 : lv >= 4 ? 180 : 150) * (1 + Math.max(0, mods.rangePct) * 0.15)
+      );
+      const subRadius = lv >= 4 ? 76 : 64;
+      return {
+        ...base,
+        shape: 'circle',
+        castRange,
+        radius: zoneRadius,
+        subRadius,
+        count,
+      };
+    }
+
+    case 'espirito_imortal': {
+      return {
+        ...base,
+        shape: 'aura',
+        radius: 86,
+        castRange: 86,
+      };
+    }
+
+    case 'chute_colorado': {
+      const count = lv >= 4 ? 3 : 1;
+      const rayAngles: number[] = [];
+      for (let i = 0; i < count; i++) {
+        rayAngles.push(count === 1 ? 0 : (i - 1) * 0.22);
+      }
+      const speed = 515;
+      const life = 1.25 * (1 + Math.max(0, mods.rangePct) * 0.25);
+      const explosiveRadius = Math.round(
+        (lv >= 7 ? 130 : lv >= 4 ? 104 : 84) * (1 + Math.max(0, mods.rangePct) * 0.15)
+      );
+      return {
+        ...base,
+        shape: 'projectile',
+        speed,
+        life,
+        range: PROJECTILE_SPAWN_OFFSET + speed * life,
+        rayAngles,
+        count,
+        pierce: 0,
+        explosiveRadius,
+      };
+    }
+
+    case 'muralha_colorada': {
+      const radius = Math.round((lv >= 7 ? 128 : lv >= 4 ? 108 : 88) * Math.min(1.25, 0.9 + rangeScale * 0.1));
+      return {
+        ...base,
+        shape: 'aura',
+        radius,
+        castRange: radius,
+      };
+    }
+
+    case 'furia_beira_rio': {
+      return {
+        ...base,
+        shape: 'aura',
+        radius: Math.round(102 * Math.min(1.3, 0.9 + rangeScale * 0.1)),
+        castRange: 102,
+      };
+    }
+
+    case 'inferno_colorado': {
+      const castRange = Math.round(370 * (1 + Math.max(0, mods.rangePct) * 0.25));
+      const radius = Math.round(
+        (lv >= 7 ? 210 : lv >= 4 ? 178 : 148) * (1 + Math.max(0, mods.rangePct) * 0.15)
+      );
+      return {
+        ...base,
+        shape: 'circle',
+        castRange,
+        radius,
+        subRadius: radius,
+        count: 1,
+      };
+    }
+
+    case 'sangue_colorado': {
+      return {
+        ...base,
+        shape: 'aura',
+        radius: 82,
+        castRange: 82,
       };
     }
 

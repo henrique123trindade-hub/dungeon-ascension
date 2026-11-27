@@ -1,4 +1,4 @@
-export type ClassId = 'warrior' | 'assassin' | 'mage' | 'necromancer' | 'archer' | 'slatt';
+export type ClassId = 'warrior' | 'assassin' | 'mage' | 'necromancer' | 'archer' | 'slatt' | 'farid' | 'baldasso';
 
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' | 'mythic';
 
@@ -35,7 +35,17 @@ export type SkillId =
   | 'banana_peel'
   | 'primate_fury'
   | 'banana_rain'
-  | 'primate_instinct';
+  | 'primate_instinct'
+  | 'chute_tricolor'
+  | 'imortal_shield'
+  | 'avalanche_tricolor'
+  | 'gloria_imortal'
+  | 'espirito_imortal'
+  | 'chute_colorado'
+  | 'muralha_colorada'
+  | 'furia_beira_rio'
+  | 'inferno_colorado'
+  | 'sangue_colorado';
 
 export type SynergyId =
   | 'fire_tornado'
@@ -90,7 +100,15 @@ export interface ClassDef {
   archetype: string;
   description: string;
   weaponName: string;
-  attackStyle: 'melee_cleave' | 'twin_dagger' | 'arcane_bolt' | 'soul_orb' | 'multi_arrow' | 'banana_toss';
+  attackStyle:
+    | 'melee_cleave'
+    | 'twin_dagger'
+    | 'arcane_bolt'
+    | 'soul_orb'
+    | 'multi_arrow'
+    | 'banana_toss'
+    | 'tricolor_ball'
+    | 'colorado_ball';
   accentColor: string;
   secret?: boolean;
   baseStats: {
@@ -159,7 +177,18 @@ export interface SkillDef {
   id: SkillId;
   name: string;
   type: 'active' | 'passive';
-  element: 'fire' | 'shadow' | 'lightning' | 'arcane' | 'ice' | 'divine' | 'gravity' | 'blood' | 'primate';
+  element:
+    | 'fire'
+    | 'shadow'
+    | 'lightning'
+    | 'arcane'
+    | 'ice'
+    | 'divine'
+    | 'gravity'
+    | 'blood'
+    | 'primate'
+    | 'tricolor'
+    | 'colorado';
   exclusiveToClass?: ClassId;
   description: string;
   cooldown: number; // seconds (0 for pure passive or tick interval)

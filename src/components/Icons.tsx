@@ -133,6 +133,28 @@ export function ClassIcon({ classId, className = 'w-6 h-6' }: { classId: ClassId
           <path d="M9.6 15.2c1.2.9 3.6.9 4.8 0" strokeLinecap="round" />
         </svg>
       );
+    case 'farid':
+      return (
+        <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8">
+          {/* Caricatured Farid crest: fluffy hair, signature glasses & full beard */}
+          <path d="M6.5 9.5C6.5 5.8 9 4 12 4s5.5 1.8 5.5 5.5" fill="currentColor" fillOpacity="0.18" strokeLinecap="round" />
+          <rect x="6" y="9.5" width="5" height="3.8" rx="1" fill="currentColor" fillOpacity="0.28" />
+          <rect x="13" y="9.5" width="5" height="3.8" rx="1" fill="currentColor" fillOpacity="0.28" />
+          <path d="M11 11.4h2" strokeLinecap="round" />
+          <path d="M6.8 14.2c.6 3.5 2.7 5.8 5.2 5.8s4.6-2.3 5.2-5.8c-1.8 1.2-3.5 1.4-5.2 1.4s-3.4-.2-5.2-1.4z" fill="currentColor" fillOpacity="0.24" strokeLinejoin="round" />
+        </svg>
+      );
+    case 'baldasso':
+      return (
+        <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8">
+          {/* Caricatured Baldasso crest: smooth bald dome, intense brow & grizzled beard */}
+          <path d="M7 11.5C7 6.8 9.2 4 12 4s5 2.8 5 7.5" fill="currentColor" fillOpacity="0.16" />
+          <path d="M9.5 6.4c.8-.6 1.7-.9 2.5-.9" strokeLinecap="round" strokeOpacity="0.65" />
+          <path d="M7.6 10l3.4 1.3M16.4 10L13 11.3" strokeLinecap="round" strokeWidth="2.1" />
+          <path d="M7.2 14.4c.5 3.4 2.4 5.6 4.8 5.6s4.3-2.2 4.8-5.6c-1.5 1-3.1 1.3-4.8 1.3s-3.3-.3-4.8-1.3z" fill="currentColor" fillOpacity="0.28" strokeLinejoin="round" />
+          <path d="M9.8 15.8h4.4" strokeLinecap="round" />
+        </svg>
+      );
   }
 }
 
@@ -229,6 +251,80 @@ export function SkillIcon({ skillId, className = 'w-5 h-5' }: { skillId: SkillId
         <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8">
           <path d="M4 15c3.5 1.8 8.5 0 10.5-6-2.5 2.4-6 3.2-9.5 1.5" fill="currentColor" fillOpacity="0.22" strokeLinecap="round" strokeLinejoin="round" />
           <path d="M9 19c3.5 1.8 8.5 0 10.5-6-2.5 2.4-6 3.2-9.5 1.5" fill="currentColor" fillOpacity="0.26" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
+    case 'chute_tricolor':
+      return (
+        <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="15.5" cy="8.5" r="5" fill="currentColor" fillOpacity="0.24" />
+          <polygon points="15.5,6.2 17.5,7.8 16.7,10.2 14.3,10.2 13.5,7.8" fill="currentColor" />
+          <path d="M3 16l6-4m-4 7l7-5m-1 5l4-3" strokeLinecap="round" />
+        </svg>
+      );
+    case 'imortal_shield':
+      return (
+        <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M12 3l7 3v5.5c0 4.5-3 8-7 9.5-4-1.5-7-5-7-9.5V6l7-3z" fill="currentColor" fillOpacity="0.22" />
+          <path d="M9 5.5v13M12 4v16.2M15 5.5v13" strokeOpacity="0.7" />
+        </svg>
+      );
+    case 'avalanche_tricolor':
+      return (
+        <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="12" cy="12" r="3" fill="currentColor" />
+          <circle cx="12" cy="12" r="6.5" strokeDasharray="4 2.5" />
+          <circle cx="12" cy="12" r="10" strokeOpacity="0.65" />
+        </svg>
+      );
+    case 'gloria_imortal':
+      return (
+        <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="7" cy="9" r="3" fill="currentColor" fillOpacity="0.25" />
+          <circle cx="16.5" cy="7.5" r="3" fill="currentColor" fillOpacity="0.25" />
+          <circle cx="12.5" cy="16.5" r="3.4" fill="currentColor" fillOpacity="0.3" />
+          <path d="M5 4l1.5 2M14.5 2.5l1.5 2M10 10.5l1.5 2.2" strokeLinecap="round" />
+        </svg>
+      );
+    case 'espirito_imortal':
+      return (
+        <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M12 3l2.6 5.4L20.5 9.2l-4.2 4.1 1 5.9L12 16.4 6.7 19.2l1-5.9-4.2-4.1 5.9-.8L12 3z" fill="currentColor" fillOpacity="0.26" strokeLinejoin="round" />
+        </svg>
+      );
+    case 'chute_colorado':
+      return (
+        <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="14" cy="10" r="5" fill="currentColor" fillOpacity="0.26" />
+          <polygon points="14,7.8 15.8,9.3 15.1,11.6 12.9,11.6 12.2,9.3" fill="currentColor" />
+          <path d="M4 19c1.5-3.2 3.4-5.2 5.5-6.2M8 20c1.4-2.2 2.8-3.4 4.2-4M19.5 4.5L21 3" strokeLinecap="round" />
+        </svg>
+      );
+    case 'muralha_colorada':
+      return (
+        <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M4 6h16v12H4z" fill="currentColor" fillOpacity="0.22" strokeLinejoin="round" />
+          <path d="M4 10h16M4 14h16M9 6v4M15 6v4M12 10v4M9 14v4M15 14v4" />
+        </svg>
+      );
+    case 'furia_beira_rio':
+      return (
+        <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M12 3c3 3 5.5 5.8 5.5 9.8a5.5 5.5 0 11-11 0c0-2.1 1-4.1 2.4-5.8.3 1.8 1.2 2.9 2.3 3.4.3-2.6.6-5 .8-7.4z" fill="currentColor" fillOpacity="0.28" />
+          <path d="M12 13v4m-2-2h4" strokeLinecap="round" />
+        </svg>
+      );
+    case 'inferno_colorado':
+      return (
+        <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8">
+          <ellipse cx="12" cy="17.5" rx="8.5" ry="3.2" fill="currentColor" fillOpacity="0.22" />
+          <path d="M7.5 16c0-2.6 1.5-4.5 2-6.5 1.2 1.8 2 3.2 2 5.2M12 15.5c0-3.4 2-5.8 2.6-8.5 1.5 2.4 2.4 4.6 2.4 7.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
+    case 'sangue_colorado':
+      return (
+        <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M12 3c3.8 5.2 6.5 8.5 6.5 12a6.5 6.5 0 11-13 0c0-3.5 2.7-6.8 6.5-12z" fill="currentColor" fillOpacity="0.28" strokeLinejoin="round" />
+          <path d="M10 15.5c.3 1.2 1.2 2 2.4 2.2" strokeLinecap="round" />
         </svg>
       );
   }

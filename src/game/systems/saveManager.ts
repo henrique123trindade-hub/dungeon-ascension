@@ -1,4 +1,5 @@
 import { ACHIEVEMENTS, getPermanentUpgradeCost, PERMANENT_UPGRADES } from '../data/achievements';
+import { SECRET_CODES } from '../data/secretCodes';
 import { SKILLS } from '../data/skills';
 import type {
   CastMode,
@@ -67,8 +68,17 @@ export function createDefaultSave(): SaveData {
   };
 }
 
-const VALID_CLASSES: ClassId[] = ['warrior', 'assassin', 'mage', 'necromancer', 'archer', 'slatt'];
-const SECRET_CLASSES: ClassId[] = ['slatt'];
+const VALID_CLASSES: ClassId[] = [
+  'warrior',
+  'assassin',
+  'mage',
+  'necromancer',
+  'archer',
+  'slatt',
+  'farid',
+  'baldasso',
+];
+const SECRET_CLASSES: ClassId[] = ['slatt', 'farid', 'baldasso'];
 
 export function validateAndMigrateSave(raw: unknown): SaveData {
   const def = createDefaultSave();
@@ -149,9 +159,15 @@ export function validateAndMigrateSave(raw: unknown): SaveData {
       )
     : [];
 
-  // Reconcile unlocked secret classes if code is recorded in redeemedCodes
-  if (redeemedCodes.includes('monkeyslatt') && !unlockedSecretClasses.includes('slatt')) {
-    unlockedSecretClasses.push('slatt');
+  // Reconcile unlocked secret classes from centralized SECRET_CODES registry
+  for (const def of SECRET_CODES) {
+    if (
+      def.reward.type === 'unlock_class' &&
+      redeemedCodes.includes(def.code) &&
+      !unlockedSecretClasses.includes(def.reward.classId)
+    ) {
+      unlockedSecretClasses.push(def.reward.classId);
+    }
   }
 
   const rawSelectedClass = VALID_CLASSES.includes(obj.selectedClass as ClassId)
