@@ -189,6 +189,7 @@ export function GameOverModal({
 interface SettingsModalProps {
   settings: SettingsData;
   unlockedSecretClasses?: ClassId[];
+  isCloudAccount?: boolean;
   onUpdate: (next: SettingsData) => void;
   onResetSave: () => void;
   onClose: () => void;
@@ -197,6 +198,7 @@ interface SettingsModalProps {
 export function SettingsModal({
   settings,
   unlockedSecretClasses = [],
+  isCloudAccount = false,
   onUpdate,
   onResetSave,
   onClose,
@@ -328,6 +330,11 @@ export function SettingsModal({
             checked={settings.damageNumbers}
             onChange={(v) => onUpdate({ ...settings, damageNumbers: v })}
           />
+          <ToggleRow
+            label="Pular transições de capítulo já vistas"
+            checked={Boolean(settings.skipRepeatedTransitions)}
+            onChange={(v) => onUpdate({ ...settings, skipRepeatedTransitions: v })}
+          />
 
           {/* Combat, Targeting & Cast Modes */}
           <div className="pt-3 border-t border-white/10 space-y-3">
@@ -458,7 +465,11 @@ export function SettingsModal({
           </div>
 
           <div className="pt-4 border-t border-white/10 flex items-center justify-between">
-            <span className="text-xs text-[#9c9487]">Dados salvos localmente no navegador</span>
+            <span className="text-xs text-[#9c9487]">
+              {isCloudAccount
+                ? 'Progresso sincronizado na sua conta na nuvem'
+                : 'Dados salvos localmente no navegador'}
+            </span>
             {!confirmReset ? (
               <button
                 type="button"

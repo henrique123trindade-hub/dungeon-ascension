@@ -1,5 +1,5 @@
 import { ACHIEVEMENTS, getPermanentUpgradeCost, PERMANENT_UPGRADES } from '../data/achievements';
-import { SECRET_CODES } from '../data/secretCodes';
+import { matchesSecretCodeEntry, SECRET_CODES } from '../data/secretCodes';
 import { SKILLS } from '../data/skills';
 import type {
   CastMode,
@@ -11,6 +11,7 @@ import type {
   SkillId,
   SynergyId,
 } from '../types';
+import { createDefaultNarrativeProgress, validateNarrativeProgress } from './narrativeManager';
 
 export const SAVE_STORAGE_KEY = 'dungeon_ascension_save_v1';
 export const SAVE_VERSION = 1;
@@ -29,6 +30,7 @@ export function createDefaultSettings(): SettingsData {
     defaultCastMode: 'quick_indicator',
     dashCastMode: 'quick_indicator',
     skillCastModes: {},
+    skipRepeatedTransitions: false,
   };
 }
 
@@ -47,6 +49,7 @@ export function createDefaultPermanentUpgrades(): PermanentUpgrades {
 export function createDefaultSave(): SaveData {
   return {
     version: SAVE_VERSION,
+    saveVersion: 1,
     crystals: 25, // Small starting gift so player can explore Sanctuary quickly
     totalCrystalsEarned: 25,
     ascensionLevel: 0,
@@ -57,6 +60,7 @@ export function createDefaultSave(): SaveData {
     totalKills: 0,
     totalBossKills: 0,
     totalRuns: 0,
+    totalPlayTimeSec: 0,
     bestiaryKills: {},
     discoveredSynergies: [],
     unlockedAchievements: [],
@@ -65,6 +69,7 @@ export function createDefaultSave(): SaveData {
     unlockedSecretClasses: [],
     records: [],
     settings: createDefaultSettings(),
+    narrative: createDefaultNarrativeProgress(),
   };
 }
 
@@ -136,6 +141,7 @@ export function validateAndMigrateSave(raw: unknown): SaveData {
     defaultCastMode: isCastMode(setRaw.defaultCastMode) ? setRaw.defaultCastMode : 'quick_indicator',
     dashCastMode: isCastMode(setRaw.dashCastMode) ? setRaw.dashCastMode : 'quick_indicator',
     skillCastModes,
+    skipRepeatedTransitions: typeof setRaw.skipRepeatedTransitions === 'boolean' ? setRaw.skipRepeatedTransitions : false,
   };
 
   const redeemedCodes = Array.isArray(obj.redeemedCodes)
@@ -146,7 +152,7 @@ export function validateAndMigrateSave(raw: unknown): SaveData {
             .map((s) => s.trim().toLowerCase())
             .filter(Boolean)
         )
-      )
+      ).slice(0, 64)
     : [];
 
   const unlockedSecretClasses = Array.isArray(obj.unlockedSecretClasses)
@@ -159,14 +165,15 @@ export function validateAndMigrateSave(raw: unknown): SaveData {
       )
     : [];
 
-  // Reconcile unlocked secret classes from centralized SECRET_CODES registry
-  for (const def of SECRET_CODES) {
+  // Reconcile unlocked secret classes from centralized SECRET_CODES registry (matching either legacy code or opaque codeId)
+  for (const defEntry of SECRET_CODES) {
+    const matched = redeemedCodes.some((stored) => matchesSecretCodeEntry(stored, defEntry));
     if (
-      def.reward.type === 'unlock_class' &&
-      redeemedCodes.includes(def.code) &&
-      !unlockedSecretClasses.includes(def.reward.classId)
+      defEntry.reward.type === 'unlock_class' &&
+      matched &&
+      !unlockedSecretClasses.includes(defEntry.reward.classId)
     ) {
-      unlockedSecretClasses.push(def.reward.classId);
+      unlockedSecretClasses.push(defEntry.reward.classId);
     }
   }
 
@@ -180,41 +187,60 @@ export function validateAndMigrateSave(raw: unknown): SaveData {
 
   const bestiaryKills: Record<string, number> = {};
   if (obj.bestiaryKills && typeof obj.bestiaryKills === 'object') {
+    let count = 0;
     for (const [k, v] of Object.entries(obj.bestiaryKills as Record<string, unknown>)) {
+      if (count >= 64) break;
       if (typeof v === 'number' && Number.isFinite(v) && v >= 0) {
         bestiaryKills[k] = Math.floor(v);
+        count++;
       }
     }
   }
 
   const discoveredSynergies = Array.isArray(obj.discoveredSynergies)
-    ? (obj.discoveredSynergies.filter((s) => typeof s === 'string') as SynergyId[])
+    ? (obj.discoveredSynergies.filter((s) => typeof s === 'string') as SynergyId[]).slice(0, 16)
     : [];
 
   const unlockedAchievements = Array.isArray(obj.unlockedAchievements)
-    ? obj.unlockedAchievements.filter((s): s is string => typeof s === 'string')
+    ? obj.unlockedAchievements.filter((s): s is string => typeof s === 'string').slice(0, 64)
     : [];
 
   const claimedAchievements = Array.isArray(obj.claimedAchievements)
-    ? obj.claimedAchievements.filter((s): s is string => typeof s === 'string')
+    ? obj.claimedAchievements.filter((s): s is string => typeof s === 'string').slice(0, 64)
     : [];
 
   const records = Array.isArray(obj.records)
     ? (obj.records.filter((r) => r && typeof r === 'object') as RunRecord[]).slice(0, 20)
     : [];
 
+  const derivedPlayTime = records.reduce(
+    (acc, r) => acc + (typeof r.durationSec === 'number' && Number.isFinite(r.durationSec) ? Math.max(0, Math.floor(r.durationSec)) : 0),
+    0
+  );
+  const rawPlayTime = Math.floor(num(obj.totalPlayTimeSec, 0));
+
+  const bestFloor = Math.min(9999, Math.floor(num(obj.bestFloor, 0)));
+  const totalRuns = Math.min(1000000, Math.floor(num(obj.totalRuns, 0)));
+  const narrative = validateNarrativeProgress(obj.narrative, {
+    bestFloor,
+    bestiaryKills,
+    totalRuns,
+  });
+
   return {
     version: SAVE_VERSION,
-    crystals: Math.floor(num(obj.crystals, def.crystals)),
-    totalCrystalsEarned: Math.floor(num(obj.totalCrystalsEarned, def.totalCrystalsEarned)),
-    ascensionLevel: Math.floor(num(obj.ascensionLevel, 0)),
+    saveVersion: Math.max(1, Math.floor(num(obj.saveVersion, 1, 1))),
+    crystals: Math.min(10000000, Math.floor(num(obj.crystals, def.crystals))),
+    totalCrystalsEarned: Math.min(50000000, Math.floor(num(obj.totalCrystalsEarned, def.totalCrystalsEarned))),
+    ascensionLevel: Math.min(1000, Math.floor(num(obj.ascensionLevel, 0))),
     selectedClass,
     permanentUpgrades,
-    bestFloor: Math.floor(num(obj.bestFloor, 0)),
-    bestLevel: Math.floor(num(obj.bestLevel, 1, 1)),
-    totalKills: Math.floor(num(obj.totalKills, 0)),
-    totalBossKills: Math.floor(num(obj.totalBossKills, 0)),
-    totalRuns: Math.floor(num(obj.totalRuns, 0)),
+    bestFloor,
+    bestLevel: Math.min(9999, Math.floor(num(obj.bestLevel, 1, 1))),
+    totalKills: Math.min(100000000, Math.floor(num(obj.totalKills, 0))),
+    totalBossKills: Math.min(10000000, Math.floor(num(obj.totalBossKills, 0))),
+    totalRuns,
+    totalPlayTimeSec: Math.min(1000000000, Math.max(rawPlayTime, derivedPlayTime)),
     bestiaryKills,
     discoveredSynergies: Array.from(new Set(discoveredSynergies)),
     unlockedAchievements: Array.from(new Set(unlockedAchievements)),
@@ -223,6 +249,7 @@ export function validateAndMigrateSave(raw: unknown): SaveData {
     unlockedSecretClasses,
     records,
     settings,
+    narrative,
   };
 }
 

@@ -1,0 +1,463 @@
+{
+  "entities": {
+    "PlayerProfile": {
+      "title": "PlayerProfile",
+      "description": "Publicly readable non-PII player profile and progression summary ready for leaderboards and social features.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Immutable Firebase Auth UID of the player."
+        },
+        "username": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 20,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Unique display username."
+        },
+        "usernameLower": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 20,
+          "pattern": "^[a-z0-9_\\-]+$",
+          "description": "Lowercase normalized username matching usernames/{usernameLower}."
+        },
+        "avatarId": {
+          "type": "string",
+          "enum": [
+            "crest_emblem",
+            "warrior",
+            "assassin",
+            "mage",
+            "necromancer",
+            "archer",
+            "slatt",
+            "farid",
+            "baldasso"
+          ],
+          "description": "Selected dark-fantasy avatar crest."
+        },
+        "equippedTitle": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 48,
+          "pattern": "^[a-z0-9_]+$",
+          "description": "Equipped player title identifier."
+        },
+        "favoriteClass": {
+          "type": "string",
+          "enum": [
+            "warrior",
+            "assassin",
+            "mage",
+            "necromancer",
+            "archer",
+            "slatt",
+            "farid",
+            "baldasso"
+          ],
+          "description": "Player favorite class."
+        },
+        "publicProfile": {
+          "type": "boolean",
+          "description": "Controls whether profile summary can be viewed by other authenticated players."
+        },
+        "bestFloor": {
+          "type": "number",
+          "description": "Highest dungeon floor reached."
+        },
+        "bestLevel": {
+          "type": "number",
+          "description": "Highest character level reached."
+        },
+        "totalKills": {
+          "type": "number",
+          "description": "Lifetime enemies defeated."
+        },
+        "totalBossKills": {
+          "type": "number",
+          "description": "Lifetime bosses defeated."
+        },
+        "totalRuns": {
+          "type": "number",
+          "description": "Lifetime dungeon expeditions completed."
+        },
+        "totalPlayTimeSec": {
+          "type": "number",
+          "description": "Total playtime accumulated in seconds."
+        },
+        "ascensionLevel": {
+          "type": "number",
+          "description": "Current sanctuary ascension tier."
+        },
+        "achievementsCount": {
+          "type": "number",
+          "description": "Count of unlocked achievements."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Immutable account creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last profile update timestamp."
+        },
+        "lastLoginAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last recorded sign-in timestamp."
+        }
+      },
+      "required": [
+        "uid",
+        "username",
+        "usernameLower",
+        "avatarId",
+        "equippedTitle",
+        "favoriteClass",
+        "publicProfile",
+        "bestFloor",
+        "bestLevel",
+        "totalKills",
+        "totalBossKills",
+        "totalRuns",
+        "totalPlayTimeSec",
+        "ascensionLevel",
+        "achievementsCount",
+        "createdAt",
+        "updatedAt",
+        "lastLoginAt"
+      ]
+    },
+    "PlayerAccountPrivate": {
+      "title": "PlayerAccountPrivate",
+      "description": "Strictly owner-only PII and account metadata isolated from public profile reads.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 160
+        },
+        "authProvider": {
+          "type": "string",
+          "enum": ["google", "password"]
+        },
+        "role": {
+          "type": "string",
+          "enum": ["player"]
+        },
+        "localMigrated": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastLoginAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "email",
+        "authProvider",
+        "role",
+        "localMigrated",
+        "createdAt",
+        "updatedAt",
+        "lastLoginAt"
+      ]
+    },
+    "PlayerCloudSave": {
+      "title": "PlayerCloudSave",
+      "description": "Owner-only versioned cloud save storing full permanent progression, currencies, upgrades, settings, and records.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "saveVersion": {
+          "type": "number",
+          "description": "Monotonically increasing optimistic concurrency save version."
+        },
+        "schemaVersion": {
+          "type": "number"
+        },
+        "crystals": {
+          "type": "number"
+        },
+        "totalCrystalsEarned": {
+          "type": "number"
+        },
+        "ascensionLevel": {
+          "type": "number"
+        },
+        "selectedClass": {
+          "type": "string",
+          "enum": [
+            "warrior",
+            "assassin",
+            "mage",
+            "necromancer",
+            "archer",
+            "slatt",
+            "farid",
+            "baldasso"
+          ]
+        },
+        "permanentUpgrades": {
+          "type": "object"
+        },
+        "bestFloor": {
+          "type": "number"
+        },
+        "bestLevel": {
+          "type": "number"
+        },
+        "totalKills": {
+          "type": "number"
+        },
+        "totalBossKills": {
+          "type": "number"
+        },
+        "totalRuns": {
+          "type": "number"
+        },
+        "totalPlayTimeSec": {
+          "type": "number"
+        },
+        "bestiaryKills": {
+          "type": "object"
+        },
+        "discoveredSynergies": {
+          "type": "array"
+        },
+        "unlockedAchievements": {
+          "type": "array"
+        },
+        "claimedAchievements": {
+          "type": "array"
+        },
+        "redeemedCodes": {
+          "type": "array"
+        },
+        "unlockedSecretClasses": {
+          "type": "array"
+        },
+        "records": {
+          "type": "array"
+        },
+        "settings": {
+          "type": "object"
+        },
+        "narrative": {
+          "type": "object",
+          "description": "Permanent narrative, lore, chapter, memory fragment, boss revelation, whisper, and cinematic unlock state."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "saveVersion",
+        "schemaVersion",
+        "crystals",
+        "totalCrystalsEarned",
+        "ascensionLevel",
+        "selectedClass",
+        "permanentUpgrades",
+        "bestFloor",
+        "bestLevel",
+        "totalKills",
+        "totalBossKills",
+        "totalRuns",
+        "totalPlayTimeSec",
+        "bestiaryKills",
+        "discoveredSynergies",
+        "unlockedAchievements",
+        "claimedAchievements",
+        "redeemedCodes",
+        "unlockedSecretClasses",
+        "records",
+        "settings",
+        "updatedAt"
+      ]
+    },
+    "CodeRedemption": {
+      "title": "CodeRedemption",
+      "description": "Immutable record preventing duplicate redemption of secret codes per account.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "codeId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "rewardType": {
+          "type": "string",
+          "enum": ["unlock_class", "crystals"]
+        },
+        "rewardValue": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "redeemedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "codeId", "rewardType", "rewardValue", "redeemedAt"]
+    },
+    "RunHistoryEntry": {
+      "title": "RunHistoryEntry",
+      "description": "Immutable expedition summary entry prepared for future seasonal rankings and leaderboards.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "classId": {
+          "type": "string",
+          "enum": [
+            "warrior",
+            "assassin",
+            "mage",
+            "necromancer",
+            "archer",
+            "slatt",
+            "farid",
+            "baldasso"
+          ]
+        },
+        "floor": {
+          "type": "number"
+        },
+        "level": {
+          "type": "number"
+        },
+        "kills": {
+          "type": "number"
+        },
+        "bossesKilled": {
+          "type": "number"
+        },
+        "durationSec": {
+          "type": "number"
+        },
+        "crystalsEarned": {
+          "type": "number"
+        },
+        "ascensionLevel": {
+          "type": "number"
+        },
+        "seasonId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32,
+          "pattern": "^[a-z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "classId",
+        "floor",
+        "level",
+        "kills",
+        "bossesKilled",
+        "durationSec",
+        "crystalsEarned",
+        "ascensionLevel",
+        "seasonId",
+        "createdAt"
+      ]
+    },
+    "UsernameReservation": {
+      "title": "UsernameReservation",
+      "description": "Atomic unique username registry mapping lowercase username to owner UID without PII.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "username": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 20,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "username", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/players/{uid}": {
+      "schema": { "$ref": "#/entities/PlayerProfile" },
+      "description": "Publicly structured non-PII player profile and career progression summary."
+    },
+    "/players/{uid}/private/account": {
+      "schema": { "$ref": "#/entities/PlayerAccountPrivate" },
+      "description": "Owner-only private account document storing email, auth provider, immutable role, and local migration marker."
+    },
+    "/players/{uid}/private/save": {
+      "schema": { "$ref": "#/entities/PlayerCloudSave" },
+      "description": "Owner-only versioned cloud save storing permanent progression, currencies, upgrades, unlocked secret classes, records, and settings."
+    },
+    "/players/{uid}/redemptions/{codeId}": {
+      "schema": { "$ref": "#/entities/CodeRedemption" },
+      "description": "Immutable per-account secret code redemption ledger enforcing single-use redemption."
+    },
+    "/players/{uid}/runs/{runId}": {
+      "schema": { "$ref": "#/entities/RunHistoryEntry" },
+      "description": "Immutable expedition run history entries prepared for future seasonal leaderboards."
+    },
+    "/usernames/{usernameLower}": {
+      "schema": { "$ref": "#/entities/UsernameReservation" },
+      "description": "Unique lowercase username reservation documents preventing duplicate player names."
+    }
+  }
+}

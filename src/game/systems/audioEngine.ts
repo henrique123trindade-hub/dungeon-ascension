@@ -15,6 +15,11 @@ class AudioEngine {
   private faridVoiceGain: GainNode | null = null;
   private activeFallbackAudios = new Set<HTMLAudioElement>();
 
+  // Subtle dark-fantasy ambient drone nodes (per biome or cinematic)
+  private ambientGain: GainNode | null = null;
+  private ambientOscs: OscillatorNode[] = [];
+  private ambientMode: string | null = null;
+
   constructor() {
     this.preloadFaridVoice();
   }
@@ -31,6 +36,10 @@ class AudioEngine {
     for (const audio of this.activeFallbackAudios) {
       audio.muted = this.muted;
       audio.volume = voiceVol;
+    }
+    if (this.ambientGain && this.ctx) {
+      const ambVol = this.muted ? 0 : Math.min(0.11, this.masterVolume * 0.085);
+      this.ambientGain.gain.setTargetAtTime(ambVol, this.ctx.currentTime, 0.15);
     }
   }
 
@@ -518,6 +527,130 @@ class AudioEngine {
 
   public playUiClick() {
     this.playTone({ type: 'triangle', freqStart: 420, freqEnd: 320, duration: 0.05, gain: 0.08 });
+  }
+
+  public stopAmbience() {
+    this.ambientMode = null;
+    if (this.ambientGain && this.ctx) {
+      try {
+        this.ambientGain.gain.setTargetAtTime(0.0001, this.ctx.currentTime, 0.12);
+      } catch {
+        // Ignore
+      }
+    }
+    const oscs = this.ambientOscs;
+    this.ambientOscs = [];
+    setTimeout(() => {
+      for (const osc of oscs) {
+        try {
+          osc.stop();
+          osc.disconnect();
+        } catch {
+          // Ignore
+        }
+      }
+    }, 240);
+  }
+
+  private startAmbientChord(modeKey: string, freqs: number[], filterFreq: number, wave: OscillatorType = 'sine') {
+    if (this.ambientMode === modeKey) return;
+    this.stopAmbience();
+    if (this.muted || this.masterVolume <= 0) return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    try {
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(filterFreq, ctx.currentTime);
+
+      const masterAmb = ctx.createGain();
+      const targetVol = Math.min(0.11, this.masterVolume * 0.075);
+      masterAmb.gain.setValueAtTime(0.0001, ctx.currentTime);
+      masterAmb.gain.linearRampToValueAtTime(targetVol, ctx.currentTime + 1.1);
+
+      filter.connect(masterAmb);
+      masterAmb.connect(ctx.destination);
+
+      const created: OscillatorNode[] = [];
+      freqs.forEach((f, idx) => {
+        const osc = ctx.createOscillator();
+        const subGain = ctx.createGain();
+        osc.type = idx === 0 ? 'sine' : wave;
+        osc.frequency.setValueAtTime(f, ctx.currentTime);
+        subGain.gain.setValueAtTime(idx === 0 ? 0.55 : 0.25, ctx.currentTime);
+        osc.connect(subGain);
+        subGain.connect(filter);
+        osc.start();
+        created.push(osc);
+      });
+
+      this.ambientGain = masterAmb;
+      this.ambientOscs = created;
+      this.ambientMode = modeKey;
+    } catch {
+      // Non-fatal in headless audio environments
+    }
+  }
+
+  public startBiomeAmbience(biomeIndex: number) {
+    // Distinct harmonic drone palette per biome (0..9)
+    const profiles: Array<{ freqs: number[]; filter: number; wave: OscillatorType }> = [
+      { freqs: [65.4, 98.0, 146.8], filter: 320, wave: 'triangle' }, // 0 Ruins: solemn minor stone drone
+      { freqs: [73.4, 110.0, 174.6], filter: 420, wave: 'sine' }, // 1 Caverns: crystal resonance
+      { freqs: [69.3, 103.8, 155.6], filter: 360, wave: 'sine' }, // 2 Forest: eerie hollow wind
+      { freqs: [55.0, 82.4, 116.5], filter: 280, wave: 'sawtooth' }, // 3 Fortress: deep magma rumble
+      { freqs: [82.4, 123.5, 246.9], filter: 560, wave: 'sine' }, // 4 Frozen: crystalline frost shimmer
+      { freqs: [49.0, 73.4, 138.6], filter: 300, wave: 'triangle' }, // 5 Abyss: void dissonance
+      { freqs: [58.3, 87.3, 130.8], filter: 310, wave: 'triangle' }, // 6 Temple: funereal choir drone
+      { freqs: [61.7, 92.5, 146.8], filter: 260, wave: 'sine' }, // 7 Shadow: hushed eclipse hum
+      { freqs: [55.0, 77.8, 123.5], filter: 390, wave: 'sawtooth' }, // 8 Chaos: unstable tritone pulse
+      { freqs: [73.4, 110.0, 164.8, 220.0], filter: 620, wave: 'triangle' }, // 9 Celestial: sacred golden chord
+    ];
+    const p = profiles[Math.max(0, Math.min(profiles.length - 1, biomeIndex))];
+    this.startAmbientChord(`biome_${biomeIndex}`, p.freqs, p.filter, p.wave);
+  }
+
+  public startCinematicAmbience() {
+    this.startAmbientChord('cinematic', [55.0, 82.4, 130.8, 164.8], 440, 'triangle');
+  }
+
+  public playCinematicPulse() {
+    this.playTone({ type: 'sine', freqStart: 110, freqEnd: 65, duration: 0.9, gain: 0.16 });
+    this.playTone({ type: 'triangle', freqStart: 220, freqEnd: 293.6, duration: 0.7, gain: 0.09, delay: 0.12 });
+  }
+
+  public playChapterTransition(biomeIndex: number) {
+    const root = 110 + (biomeIndex % 5) * 22;
+    this.playTone({ type: 'sine', freqStart: root, freqEnd: root * 0.75, duration: 0.7, gain: 0.17 });
+    this.playTone({ type: 'triangle', freqStart: root * 2, freqEnd: root * 3, duration: 0.5, gain: 0.12, delay: 0.1 });
+  }
+
+  public playMemoryFragment() {
+    [440, 554.4, 659.3, 880].forEach((n, idx) => {
+      this.playTone({ type: 'sine', freqStart: n, freqEnd: n * 1.01, duration: 0.35, gain: 0.12, delay: idx * 0.08 });
+    });
+  }
+
+  public playTowerWhisper() {
+    this.playTone({ type: 'sine', freqStart: 185, freqEnd: 138, duration: 0.65, gain: 0.13 });
+    this.playTone({ type: 'triangle', freqStart: 370, freqEnd: 277, duration: 0.55, gain: 0.08, delay: 0.14 });
+  }
+
+  public playEnvHazard(kind: 'trap' | 'crystal' | 'lava' | 'celestial' | 'chaos') {
+    if (kind === 'trap') {
+      this.playTone({ type: 'sawtooth', freqStart: 420, freqEnd: 140, duration: 0.16, gain: 0.15 });
+    } else if (kind === 'crystal') {
+      this.playTone({ type: 'triangle', freqStart: 780, freqEnd: 210, duration: 0.28, gain: 0.18 });
+      this.playTone({ type: 'sawtooth', freqStart: 240, freqEnd: 70, duration: 0.25, gain: 0.14, delay: 0.04 });
+    } else if (kind === 'lava') {
+      this.playTone({ type: 'sawtooth', freqStart: 130, freqEnd: 65, duration: 0.2, gain: 0.12 });
+    } else if (kind === 'celestial') {
+      this.playTone({ type: 'sine', freqStart: 880, freqEnd: 440, duration: 0.34, gain: 0.16 });
+      this.playTone({ type: 'triangle', freqStart: 1320, freqEnd: 660, duration: 0.28, gain: 0.12, delay: 0.05 });
+    } else {
+      this.playTone({ type: 'square', freqStart: 310, freqEnd: 520, duration: 0.22, gain: 0.12 });
+    }
   }
 }
 

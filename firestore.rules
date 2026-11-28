@@ -1,0 +1,508 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 1 / Safety Net: Default deny everything
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Reusable Hardened Primitives ---
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isVerifiedOwner(uid) {
+      return isVerifiedUser() && request.auth.uid == uid;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidUsernameId(uname) {
+      return uname is string && uname.size() >= 3 && uname.size() <= 20 && uname.matches('^[a-z0-9_\\-]+$');
+    }
+
+    function isValidUsernameDisplay(uname) {
+      return uname is string && uname.size() >= 3 && uname.size() <= 20 && uname.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidClassId(c) {
+      return c in ['warrior', 'assassin', 'mage', 'necromancer', 'archer', 'slatt', 'farid', 'baldasso'];
+    }
+
+    function isValidAvatarId(a) {
+      return a in ['crest_emblem', 'warrior', 'assassin', 'mage', 'necromancer', 'archer', 'slatt', 'farid', 'baldasso'];
+    }
+
+    function isValidInt(v, minVal, maxVal) {
+      return v is int && v >= minVal && v <= maxVal;
+    }
+
+    function isValidNum(v, minVal, maxVal) {
+      return (v is int || v is float) && v >= minVal && v <= maxVal;
+    }
+
+    function isValidStringList(arr, maxLen) {
+      return arr is list
+        && arr.size() <= maxLen
+        && (arr.size() == 0 || (arr[0] is string && arr[0].size() <= 64));
+    }
+
+    function isValidIntList(arr, maxLen) {
+      return arr is list
+        && arr.size() <= maxLen
+        && (arr.size() == 0 || (arr[0] is int && arr[0] >= 0 && arr[0] <= 100));
+    }
+
+    function isValidNarrativeProgress(n) {
+      return n is map
+        && n.keys().hasAll([
+          'introSeen', 'discoveredChapters', 'reachedBiomes', 'collectedFragments',
+          'discoveredBosses', 'defeatedBosses', 'unlockedCinematics',
+          'unlockedRevelations', 'triggeredWhispers', 'infiniteAscensionUnlocked'
+        ])
+        && n.keys().hasOnly([
+          'introSeen', 'discoveredChapters', 'reachedBiomes', 'collectedFragments',
+          'discoveredBosses', 'defeatedBosses', 'unlockedCinematics',
+          'unlockedRevelations', 'triggeredWhispers', 'infiniteAscensionUnlocked'
+        ])
+        && n.introSeen is bool
+        && isValidIntList(n.discoveredChapters, 10)
+        && isValidIntList(n.reachedBiomes, 10)
+        && isValidStringList(n.collectedFragments, 32)
+        && isValidStringList(n.discoveredBosses, 16)
+        && isValidStringList(n.defeatedBosses, 16)
+        && isValidStringList(n.unlockedCinematics, 8)
+        && isValidIntList(n.unlockedRevelations, 10)
+        && isValidStringList(n.triggeredWhispers, 16)
+        && n.infiniteAscensionUnlocked is bool;
+    }
+
+    function isValidPermanentUpgrades(u) {
+      return u is map
+        && u.keys().hasAll([
+          'startingDamage', 'startingHp', 'luck', 'xpGain', 'goldGain', 'resistance', 'rareLootChance'
+        ])
+        && u.keys().hasOnly([
+          'startingDamage', 'startingHp', 'luck', 'xpGain', 'goldGain', 'resistance', 'rareLootChance'
+        ])
+        && isValidInt(u.startingDamage, 0, 25)
+        && isValidInt(u.startingHp, 0, 25)
+        && isValidInt(u.luck, 0, 20)
+        && isValidInt(u.xpGain, 0, 20)
+        && isValidInt(u.goldGain, 0, 20)
+        && isValidInt(u.resistance, 0, 20)
+        && isValidInt(u.rareLootChance, 0, 15);
+    }
+
+    function isValidSettings(s) {
+      return s is map
+        && s.keys().hasAll([
+          'masterVolume', 'sfxVolume', 'muted', 'graphicsQuality',
+          'screenShake', 'damageNumbers', 'mobileControls',
+          'autoAttack', 'showAttackRange', 'defaultCastMode',
+          'dashCastMode', 'skillCastModes'
+        ])
+        && s.keys().hasOnly([
+          'masterVolume', 'sfxVolume', 'muted', 'graphicsQuality',
+          'screenShake', 'damageNumbers', 'mobileControls',
+          'autoAttack', 'showAttackRange', 'defaultCastMode',
+          'dashCastMode', 'skillCastModes', 'skipRepeatedTransitions'
+        ])
+        && isValidNum(s.masterVolume, 0, 1)
+        && isValidNum(s.sfxVolume, 0, 1)
+        && s.muted is bool
+        && s.graphicsQuality in ['low', 'medium', 'high']
+        && s.screenShake is bool
+        && s.damageNumbers is bool
+        && s.mobileControls in ['auto', 'on', 'off']
+        && s.autoAttack is bool
+        && s.showAttackRange is bool
+        && s.defaultCastMode in ['normal', 'quick', 'quick_indicator']
+        && s.dashCastMode in ['normal', 'quick', 'quick_indicator']
+        && s.skillCastModes is map
+        && s.skillCastModes.size() <= 40
+        && (!('skipRepeatedTransitions' in s) || s.skipRepeatedTransitions is bool);
+    }
+
+    // --- Entity Validation Blueprints (Pillar 2: Anti-Update-Gap) ---
+
+    function isValidPlayerProfile(data, uid) {
+      return data.keys().hasAll([
+          'uid', 'username', 'usernameLower', 'avatarId', 'equippedTitle',
+          'favoriteClass', 'publicProfile', 'bestFloor', 'bestLevel',
+          'totalKills', 'totalBossKills', 'totalRuns', 'totalPlayTimeSec',
+          'ascensionLevel', 'achievementsCount', 'createdAt', 'updatedAt', 'lastLoginAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'username', 'usernameLower', 'avatarId', 'equippedTitle',
+          'favoriteClass', 'publicProfile', 'bestFloor', 'bestLevel',
+          'totalKills', 'totalBossKills', 'totalRuns', 'totalPlayTimeSec',
+          'ascensionLevel', 'achievementsCount', 'createdAt', 'updatedAt', 'lastLoginAt'
+        ])
+        && data.uid == uid
+        && data.uid == request.auth.uid
+        && isValidUsernameDisplay(data.username)
+        && isValidUsernameId(data.usernameLower)
+        && data.username.lower() == data.usernameLower
+        && isValidAvatarId(data.avatarId)
+        && data.equippedTitle is string && data.equippedTitle.size() >= 1 && data.equippedTitle.size() <= 48 && data.equippedTitle.matches('^[a-z0-9_]+$')
+        && isValidClassId(data.favoriteClass)
+        && data.publicProfile is bool
+        && isValidInt(data.bestFloor, 0, 9999)
+        && isValidInt(data.bestLevel, 1, 9999)
+        && isValidInt(data.totalKills, 0, 100000000)
+        && isValidInt(data.totalBossKills, 0, 10000000)
+        && isValidInt(data.totalRuns, 0, 1000000)
+        && isValidInt(data.totalPlayTimeSec, 0, 1000000000)
+        && isValidInt(data.ascensionLevel, 0, 1000)
+        && isValidInt(data.achievementsCount, 0, 100)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.lastLoginAt is timestamp;
+    }
+
+    function isValidPlayerAccountPrivate(data, uid) {
+      return data.keys().hasAll([
+          'uid', 'email', 'authProvider', 'role', 'localMigrated',
+          'createdAt', 'updatedAt', 'lastLoginAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'email', 'authProvider', 'role', 'localMigrated',
+          'createdAt', 'updatedAt', 'lastLoginAt'
+        ])
+        && data.uid == uid
+        && data.uid == request.auth.uid
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 160
+        && data.authProvider in ['google', 'password']
+        && data.role == 'player'
+        && data.localMigrated is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.lastLoginAt is timestamp;
+    }
+
+    function isValidPlayerCloudSave(data, uid) {
+      return data.keys().hasAll([
+          'uid', 'saveVersion', 'schemaVersion', 'crystals', 'totalCrystalsEarned',
+          'ascensionLevel', 'selectedClass', 'permanentUpgrades', 'bestFloor',
+          'bestLevel', 'totalKills', 'totalBossKills', 'totalRuns', 'totalPlayTimeSec',
+          'bestiaryKills', 'discoveredSynergies', 'unlockedAchievements',
+          'claimedAchievements', 'redeemedCodes', 'unlockedSecretClasses',
+          'records', 'settings', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'saveVersion', 'schemaVersion', 'crystals', 'totalCrystalsEarned',
+          'ascensionLevel', 'selectedClass', 'permanentUpgrades', 'bestFloor',
+          'bestLevel', 'totalKills', 'totalBossKills', 'totalRuns', 'totalPlayTimeSec',
+          'bestiaryKills', 'discoveredSynergies', 'unlockedAchievements',
+          'claimedAchievements', 'redeemedCodes', 'unlockedSecretClasses',
+          'records', 'settings', 'narrative', 'updatedAt'
+        ])
+        && data.uid == uid
+        && data.uid == request.auth.uid
+        && isValidInt(data.saveVersion, 1, 10000000)
+        && data.schemaVersion == 1
+        && isValidInt(data.crystals, 0, 10000000)
+        && isValidInt(data.totalCrystalsEarned, 0, 50000000)
+        && isValidInt(data.ascensionLevel, 0, 1000)
+        && isValidClassId(data.selectedClass)
+        && isValidPermanentUpgrades(data.permanentUpgrades)
+        && isValidInt(data.bestFloor, 0, 9999)
+        && isValidInt(data.bestLevel, 1, 9999)
+        && isValidInt(data.totalKills, 0, 100000000)
+        && isValidInt(data.totalBossKills, 0, 10000000)
+        && isValidInt(data.totalRuns, 0, 1000000)
+        && isValidInt(data.totalPlayTimeSec, 0, 1000000000)
+        && data.bestiaryKills is map && data.bestiaryKills.size() <= 64
+        && isValidStringList(data.discoveredSynergies, 16)
+        && isValidStringList(data.unlockedAchievements, 64)
+        && isValidStringList(data.claimedAchievements, 64)
+        && isValidStringList(data.redeemedCodes, 64)
+        && isValidStringList(data.unlockedSecretClasses, 16)
+        && data.records is list && data.records.size() <= 20
+        && isValidSettings(data.settings)
+        && (!('narrative' in data) || isValidNarrativeProgress(data.narrative))
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCodeRedemption(data, uid, codeId) {
+      return data.keys().hasAll(['uid', 'codeId', 'rewardType', 'rewardValue', 'redeemedAt'])
+        && data.keys().hasOnly(['uid', 'codeId', 'rewardType', 'rewardValue', 'redeemedAt'])
+        && data.uid == uid
+        && data.uid == request.auth.uid
+        && data.codeId == codeId
+        && isValidId(data.codeId)
+        && data.codeId.size() <= 64
+        && data.rewardType in ['unlock_class', 'crystals']
+        && data.rewardValue is string && data.rewardValue.size() >= 1 && data.rewardValue.size() <= 64
+        && data.redeemedAt == request.time;
+    }
+
+    function isValidRunHistoryEntry(data, uid) {
+      return data.keys().hasAll([
+          'uid', 'classId', 'floor', 'level', 'kills', 'bossesKilled',
+          'durationSec', 'crystalsEarned', 'ascensionLevel', 'seasonId', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'classId', 'floor', 'level', 'kills', 'bossesKilled',
+          'durationSec', 'crystalsEarned', 'ascensionLevel', 'seasonId', 'createdAt'
+        ])
+        && data.uid == uid
+        && data.uid == request.auth.uid
+        && isValidClassId(data.classId)
+        && isValidInt(data.floor, 1, 9999)
+        && isValidInt(data.level, 1, 9999)
+        && isValidInt(data.kills, 0, 1000000)
+        && isValidInt(data.bossesKilled, 0, 10000)
+        && isValidInt(data.durationSec, 0, 86400)
+        && isValidInt(data.crystalsEarned, 0, 1000000)
+        && isValidInt(data.ascensionLevel, 0, 1000)
+        && data.seasonId is string && data.seasonId.size() >= 1 && data.seasonId.size() <= 32 && data.seasonId.matches('^[a-z0-9_\\-]+$')
+        && data.createdAt == request.time;
+    }
+
+    function isValidUsernameDoc(data, usernameLower) {
+      return data.keys().hasAll(['uid', 'username', 'createdAt'])
+        && data.keys().hasOnly(['uid', 'username', 'createdAt'])
+        && data.uid == request.auth.uid
+        && isValidUsernameDisplay(data.username)
+        && data.username.lower() == usernameLower
+        && data.createdAt == request.time;
+    }
+
+    // --- Collection Rules ---
+
+    // Global Unique Username Registry (No PII, single-doc availability lookup only)
+    match /usernames/{usernameLower} {
+      allow get: if isValidUsernameId(usernameLower);
+      allow list: if false;
+      allow create: if isVerifiedUser()
+        && isValidUsernameId(usernameLower)
+        && isValidUsernameDoc(incoming(), usernameLower);
+      allow update: if false;
+      allow delete: if isVerifiedUser()
+        && isValidUsernameId(usernameLower)
+        && existing().uid == request.auth.uid;
+    }
+
+    // Public Player Profile (No PII) + Private & Ledger Subcollections
+    match /players/{uid} {
+      allow get: if isValidId(uid) && (
+        isOwner(uid) || (isSignedIn() && existing().publicProfile == true)
+      );
+      allow list: if false;
+
+      allow create: if isVerifiedOwner(uid)
+        && isValidId(uid)
+        && isValidPlayerProfile(incoming(), uid)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && incoming().lastLoginAt == request.time
+        && getAfter(/databases/$(database)/documents/usernames/$(incoming().usernameLower)).data.uid == request.auth.uid;
+
+      allow update: if isVerifiedOwner(uid)
+        && isValidId(uid)
+        && isValidPlayerProfile(incoming(), uid)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action 1: Customize profile (avatar, title, favorite class, visibility, or username change with atomic username ownership proof)
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'username', 'usernameLower', 'avatarId', 'equippedTitle',
+              'favoriteClass', 'publicProfile', 'updatedAt'
+            ])
+            && incoming().lastLoginAt == existing().lastLoginAt
+            && (
+              (incoming().username == existing().username && incoming().usernameLower == existing().usernameLower)
+              || getAfter(/databases/$(database)/documents/usernames/$(incoming().usernameLower)).data.uid == request.auth.uid
+            )
+          )
+          ||
+          // Action 2: Sync denormalized career summary stats + login timestamp
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'bestFloor', 'bestLevel', 'totalKills', 'totalBossKills',
+              'totalRuns', 'totalPlayTimeSec', 'ascensionLevel',
+              'achievementsCount', 'favoriteClass', 'updatedAt', 'lastLoginAt'
+            ])
+            && (incoming().lastLoginAt == existing().lastLoginAt || incoming().lastLoginAt == request.time)
+            && incoming().bestFloor >= existing().bestFloor
+            && incoming().bestLevel >= existing().bestLevel
+            && incoming().totalKills >= existing().totalKills
+            && incoming().totalBossKills >= existing().totalBossKills
+            && incoming().totalRuns >= existing().totalRuns
+            && incoming().totalPlayTimeSec >= existing().totalPlayTimeSec
+            && incoming().ascensionLevel >= existing().ascensionLevel
+          )
+          ||
+          // Action 3: Explicit player-initiated progress reset
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'bestFloor', 'bestLevel', 'totalKills', 'totalBossKills',
+              'totalRuns', 'totalPlayTimeSec', 'ascensionLevel',
+              'achievementsCount', 'updatedAt'
+            ])
+            && incoming().lastLoginAt == existing().lastLoginAt
+            && incoming().bestFloor == 0
+            && incoming().bestLevel == 1
+            && incoming().totalKills == 0
+            && incoming().totalBossKills == 0
+            && incoming().totalRuns == 0
+            && incoming().totalPlayTimeSec == 0
+            && incoming().ascensionLevel == 0
+            && incoming().achievementsCount == 0
+          )
+        );
+
+      allow delete: if false;
+
+      // Private PII & Account Metadata (Strictly Owner-Only)
+      match /private/account {
+        allow get: if isValidId(uid) && isOwner(uid);
+        allow list: if false;
+
+        allow create: if isVerifiedOwner(uid)
+          && isValidId(uid)
+          && isValidPlayerAccountPrivate(incoming(), uid)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && incoming().lastLoginAt == request.time
+          && existsAfter(/databases/$(database)/documents/players/$(uid));
+
+        allow update: if isVerifiedOwner(uid)
+          && isValidId(uid)
+          && isValidPlayerAccountPrivate(incoming(), uid)
+          && incoming().uid == existing().uid
+          && incoming().createdAt == existing().createdAt
+          && incoming().role == existing().role
+          && incoming().authProvider == existing().authProvider
+          && incoming().updatedAt == request.time
+          && (
+            // Action 1: Update last login timestamp
+            (
+              incoming().diff(existing()).affectedKeys().hasOnly(['lastLoginAt', 'updatedAt'])
+              && incoming().lastLoginAt == request.time
+            )
+            ||
+            // Action 2: One-time local-to-cloud migration completion flag (cannot revert true -> false)
+            (
+              incoming().diff(existing()).affectedKeys().hasOnly(['localMigrated', 'updatedAt'])
+              && existing().localMigrated == false
+              && incoming().localMigrated == true
+            )
+          );
+
+        allow delete: if false;
+      }
+
+      // Versioned Cloud Save (Strictly Owner-Only, Anti-Overwrite + Anti-Rollback)
+      match /private/save {
+        allow get: if isValidId(uid) && isOwner(uid);
+        allow list: if false;
+
+        allow create: if isVerifiedOwner(uid)
+          && isValidId(uid)
+          && isValidPlayerCloudSave(incoming(), uid)
+          && incoming().updatedAt == request.time
+          && existsAfter(/databases/$(database)/documents/players/$(uid));
+
+        allow update: if isVerifiedOwner(uid)
+          && isValidId(uid)
+          && isValidPlayerCloudSave(incoming(), uid)
+          && incoming().uid == existing().uid
+          && incoming().saveVersion >= existing().saveVersion
+          && incoming().updatedAt == request.time
+          && (
+            // Action 1: Normal progression sync & settings/upgrades/codes save
+            (
+              incoming().diff(existing()).affectedKeys().hasOnly([
+                'saveVersion', 'crystals', 'totalCrystalsEarned', 'ascensionLevel',
+                'selectedClass', 'permanentUpgrades', 'bestFloor', 'bestLevel',
+                'totalKills', 'totalBossKills', 'totalRuns', 'totalPlayTimeSec',
+                'bestiaryKills', 'discoveredSynergies', 'unlockedAchievements',
+                'claimedAchievements', 'redeemedCodes', 'unlockedSecretClasses',
+                'records', 'settings', 'narrative', 'updatedAt'
+              ])
+              && incoming().totalCrystalsEarned >= existing().totalCrystalsEarned
+              && incoming().bestFloor >= existing().bestFloor
+              && incoming().bestLevel >= existing().bestLevel
+              && incoming().totalKills >= existing().totalKills
+              && incoming().totalBossKills >= existing().totalBossKills
+              && incoming().totalRuns >= existing().totalRuns
+              && incoming().totalPlayTimeSec >= existing().totalPlayTimeSec
+              && incoming().ascensionLevel >= existing().ascensionLevel
+              && incoming().redeemedCodes.hasAll(existing().redeemedCodes)
+              && incoming().unlockedSecretClasses.hasAll(existing().unlockedSecretClasses)
+            )
+            ||
+            // Action 2: Explicit player-initiated save reset (resets progression while preserving permanent secret classes & incrementing saveVersion)
+            (
+              incoming().diff(existing()).affectedKeys().hasOnly([
+                'saveVersion', 'crystals', 'totalCrystalsEarned', 'ascensionLevel',
+                'selectedClass', 'permanentUpgrades', 'bestFloor', 'bestLevel',
+                'totalKills', 'totalBossKills', 'totalRuns', 'totalPlayTimeSec',
+                'bestiaryKills', 'discoveredSynergies', 'unlockedAchievements',
+                'claimedAchievements', 'records', 'updatedAt'
+              ])
+              && incoming().saveVersion > existing().saveVersion
+              && incoming().crystals == 25
+              && incoming().totalCrystalsEarned == 25
+              && incoming().ascensionLevel == 0
+              && incoming().bestFloor == 0
+              && incoming().totalRuns == 0
+            )
+          );
+
+        allow delete: if false;
+      }
+
+      // Immutable Secret Code Redemption Ledger
+      match /redemptions/{codeId} {
+        allow get: if isValidId(uid) && isValidId(codeId) && isOwner(uid);
+        allow list: if isValidId(uid) && isOwner(uid) && resource.data.uid == request.auth.uid;
+
+        allow create: if isVerifiedOwner(uid)
+          && isValidId(uid)
+          && isValidId(codeId)
+          && isValidCodeRedemption(incoming(), uid, codeId)
+          && exists(/databases/$(database)/documents/players/$(uid));
+
+        allow update, delete: if false;
+      }
+
+      // Immutable Expedition Run History
+      match /runs/{runId} {
+        allow get: if isValidId(uid) && isValidId(runId) && isOwner(uid);
+        allow list: if isValidId(uid) && isOwner(uid) && resource.data.uid == request.auth.uid;
+
+        allow create: if isVerifiedOwner(uid)
+          && isValidId(uid)
+          && isValidId(runId)
+          && isValidRunHistoryEntry(incoming(), uid)
+          && exists(/databases/$(database)/documents/players/$(uid));
+
+        allow update, delete: if false;
+      }
+    }
+  }
+}

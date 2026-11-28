@@ -31,13 +31,101 @@ export function generateAllGameTextures(scene: Phaser.Scene) {
 
 function generateBiomeTiles(scene: Phaser.Scene) {
   for (const b of BIOMES) {
-    // 4 handcrafted organic weathered flagstone variations per biome (eliminates grid/crack repetition)
+    // 1) 4 biome-tailored floor tile variations per biome (distinct textures, mortar, cracks, inlays)
     for (let v = 0; v < 4; v++) {
       makeCanvas(scene, `floor_${b.index}_${v}`, 64, 64, (ctx, w, h) => {
-        // Deep subtle mortar bed
         ctx.fillStyle = b.floorSecondary;
         ctx.fillRect(0, 0, w, h);
 
+        if (b.index === 2) {
+          // Floresta Sombria: rich dark mossy forest turf + weathered stepping flagstones
+          ctx.fillStyle = v % 2 === 0 ? '#15251d' : '#121f18';
+          ctx.fillRect(0, 0, w, h);
+          // Soft organic moss patches
+          for (let m = 0; m < 6; m++) {
+            const mx = ((m * 19 + v * 13) % 52) + 6;
+            const my = ((m * 29 + v * 17) % 52) + 6;
+            ctx.fillStyle = m % 2 === 0 ? 'rgba(34, 84, 58, 0.35)' : 'rgba(16, 185, 129, 0.08)';
+            ctx.beginPath();
+            ctx.arc(mx, my, 6 + (m % 4) * 2, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          // Weathered ancient stone path inlays
+          if (v === 0 || v === 2) {
+            ctx.fillStyle = '#2c3631';
+            ctx.strokeStyle = '#0d1511';
+            ctx.lineWidth = 1.5;
+            ctx.fillRect(8, 8, 22, 18);
+            ctx.strokeRect(8, 8, 22, 18);
+            ctx.fillRect(34, 34, 22, 20);
+            ctx.strokeRect(34, 34, 22, 20);
+            ctx.fillStyle = 'rgba(255,255,255,0.05)';
+            ctx.fillRect(9, 9, 20, 2);
+            ctx.fillRect(35, 35, 20, 2);
+          }
+          // Tiny grass tufts
+          ctx.fillStyle = '#2d5a43';
+          ctx.fillRect(14 + v * 6, 46, 2, 5);
+          ctx.fillRect(17 + v * 6, 44, 2, 7);
+          ctx.fillRect(46 - v * 4, 14, 2, 5);
+          return;
+        }
+
+        if (b.index === 1) {
+          // Cavernas Corrompidas: organic layered indigo cave stone + amethyst/cyan mineral veins
+          ctx.fillStyle = '#181124';
+          ctx.fillRect(0, 0, w, h);
+          for (let s = 0; s < 5; s++) {
+            const sx = ((s * 23 + v * 11) % 42) + 4;
+            const sy = ((s * 31 + v * 7) % 42) + 4;
+            ctx.fillStyle = s % 2 === 0 ? '#241a35' : '#1e152d';
+            ctx.beginPath();
+            ctx.ellipse(sx + 8, sy + 6, 14, 9, (s + v) * 0.4, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          // Glowing purple / azure cavern seam
+          if (v === 1 || v === 2) {
+            ctx.strokeStyle = v === 1 ? 'rgba(168, 85, 247, 0.45)' : 'rgba(56, 189, 248, 0.38)';
+            ctx.lineWidth = 1.6;
+            ctx.beginPath();
+            ctx.moveTo(6, 18 + v * 5);
+            ctx.lineTo(26, 28);
+            ctx.lineTo(44, 22);
+            ctx.lineTo(58, 38);
+            ctx.stroke();
+          }
+          return;
+        }
+
+        if (b.index === 5) {
+          // Abismo: fractured dark slate slabs suspended over luminous violet void veins
+          ctx.fillStyle = '#1d0d30';
+          ctx.fillRect(0, 0, w, h);
+          // Swirling violet energy beneath seams
+          const vg = ctx.createLinearGradient(0, 0, w, h);
+          vg.addColorStop(0, 'rgba(192, 38, 211, 0.34)');
+          vg.addColorStop(0.5, 'rgba(99, 102, 241, 0.16)');
+          vg.addColorStop(1, 'rgba(56, 189, 248, 0.25)');
+          ctx.fillStyle = vg;
+          ctx.fillRect(0, 0, w, h);
+          // Floating stone slab plates
+          const plates = [
+            [3, 3, 27, 27],
+            [33, 3, 28, 26],
+            [3, 33, 34, 28],
+            [40, 32, 21, 29],
+          ];
+          plates.forEach(([x, y, sw, sh], pi) => {
+            ctx.fillStyle = (pi + v) % 2 === 0 ? '#171226' : '#1f1833';
+            ctx.fillRect(x, y, sw, sh);
+            ctx.strokeStyle = 'rgba(232, 121, 249, 0.24)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x + 0.5, y + 0.5, sw - 1, sh - 1);
+          });
+          return;
+        }
+
+        // Flagstone-based biomes with strong distinct materials
         const layouts = [
           [
             [1, 1, 30, 30],
@@ -64,90 +152,190 @@ function generateBiomeTiles(scene: Phaser.Scene) {
           ],
         ];
         const stones = layouts[v];
+
+        // Glowing mortar underlayers for Fortress (molten lava seams), Chaos (crimson rift), Celestial (gold filigree)
+        if (b.index === 3) {
+          ctx.fillStyle = v === 2 ? '#c2410c' : '#45120d';
+          ctx.fillRect(0, 0, w, h);
+        } else if (b.index === 8) {
+          ctx.fillStyle = v % 2 === 0 ? '#5c1130' : '#2a1238';
+          ctx.fillRect(0, 0, w, h);
+        } else if (b.index === 9) {
+          ctx.fillStyle = '#856224';
+          ctx.fillRect(0, 0, w, h);
+        }
+
         for (let si = 0; si < stones.length; si++) {
           const [x, y, sw, sh] = stones[si];
           ctx.fillStyle = b.floorPrimary;
           ctx.fillRect(x, y, sw, sh);
 
-          // Soft directional stone shading gradient (top-left lit, bottom-right shaded)
           const sg = ctx.createLinearGradient(x, y, x + sw, y + sh);
           if ((si + v) % 3 === 0) {
-            sg.addColorStop(0, 'rgba(255,255,255,0.032)');
-            sg.addColorStop(1, 'rgba(0,0,0,0.16)');
+            sg.addColorStop(0, 'rgba(255,255,255,0.05)');
+            sg.addColorStop(1, 'rgba(0,0,0,0.18)');
           } else if ((si + v) % 3 === 1) {
             sg.addColorStop(0, 'rgba(0,0,0,0.06)');
-            sg.addColorStop(1, 'rgba(0,0,0,0.2)');
+            sg.addColorStop(1, 'rgba(0,0,0,0.22)');
           } else {
-            sg.addColorStop(0, 'rgba(255,255,255,0.018)');
-            sg.addColorStop(1, 'rgba(0,0,0,0.11)');
+            sg.addColorStop(0, 'rgba(255,255,255,0.025)');
+            sg.addColorStop(1, 'rgba(0,0,0,0.12)');
           }
           ctx.fillStyle = sg;
           ctx.fillRect(x, y, sw, sh);
 
-          // Subtle worn bevel edges
-          ctx.fillStyle = 'rgba(255,255,255,0.038)';
+          ctx.fillStyle = b.index === 9 ? 'rgba(254,240,138,0.16)' : 'rgba(255,255,255,0.045)';
           ctx.fillRect(x, y, sw, 1.5);
           ctx.fillRect(x, y, 1.5, sh);
-          ctx.fillStyle = 'rgba(0,0,0,0.22)';
+          ctx.fillStyle = 'rgba(0,0,0,0.25)';
           ctx.fillRect(x, y + sh - 1.5, sw, 1.5);
           ctx.fillRect(x + sw - 1.5, y, 1.5, sh);
         }
 
-        // Subtle deterministic stone grain / mineral speckles
-        for (let p = 0; p < 10; p++) {
-          const px = ((p * 23 + v * 17 + b.index * 7) % 58) + 3;
-          const py = ((p * 37 + v * 11 + b.index * 13) % 58) + 3;
-          ctx.fillStyle = p % 2 === 0 ? 'rgba(0,0,0,0.16)' : 'rgba(255,255,255,0.03)';
-          ctx.fillRect(px, py, 2, 2);
-        }
-
-        // Hairline organic fractures only on variants 1 and 3 (breaks monotony)
-        if (v === 1 || v === 3) {
-          ctx.strokeStyle = b.floorCrack;
-          ctx.globalAlpha = 0.55;
+        // Biome signature surface overlays
+        if (b.index === 0 && (v === 1 || v === 3)) {
+          // Ruínas: weathered dirt crack & moss edge
+          ctx.strokeStyle = '#0e1315';
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.moveTo(14, 18);
+          ctx.lineTo(24, 24);
+          ctx.lineTo(31, 20);
+          ctx.stroke();
+          ctx.fillStyle = 'rgba(52, 86, 68, 0.28)';
+          ctx.fillRect(2, 2, 10, 4);
+        } else if (b.index === 3 && v === 2) {
+          // Fortaleza Infernal: molten ember crack glow
+          ctx.strokeStyle = '#f97316';
+          ctx.lineWidth = 1.6;
+          ctx.beginPath();
+          ctx.moveTo(31, 2);
+          ctx.lineTo(31, 32);
+          ctx.lineTo(52, 32);
+          ctx.stroke();
+        } else if (b.index === 4) {
+          // Reino Congelado: snowdrift corners & frost gleam
+          ctx.fillStyle = 'rgba(224, 242, 254, 0.14)';
+          if (v === 0 || v === 2) {
+            ctx.beginPath();
+            ctx.arc(10, 10, 9, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.strokeStyle = 'rgba(186, 230, 253, 0.25)';
           ctx.lineWidth = 1;
           ctx.beginPath();
-          if (v === 1) {
-            ctx.moveTo(38, 36);
-            ctx.lineTo(44, 42);
-            ctx.lineTo(50, 40);
-            ctx.moveTo(44, 42);
-            ctx.lineTo(46, 48);
-          } else {
-            ctx.moveTo(12, 14);
-            ctx.lineTo(19, 19);
-            ctx.lineTo(25, 17);
-          }
+          ctx.moveTo(40, 14);
+          ctx.lineTo(52, 24);
           ctx.stroke();
-          ctx.globalAlpha = 1;
-        }
-
-        // Atmospheric biome crevice detail (moss/ember/frost/runic dust) on variant 2
-        if (v === 2) {
-          ctx.fillStyle = b.accentGlow;
-          ctx.globalAlpha = b.index === 0 ? 0.12 : 0.19;
-          ctx.fillRect(26, 23, 3, 5);
-          ctx.fillRect(27, 25, 4, 2);
-          ctx.fillRect(10, 38, 5, 2);
-          ctx.globalAlpha = 1;
+        } else if (b.index === 6 && v === 2) {
+          // Templo dos Mortos: engraved funerary teal glyph
+          ctx.strokeStyle = 'rgba(45, 212, 191, 0.26)';
+          ctx.lineWidth = 1.2;
+          ctx.strokeRect(20, 20, 24, 24);
+        } else if (b.index === 7) {
+          // Reino das Sombras: subtle obsidian sheen
+          ctx.fillStyle = 'rgba(99, 102, 241, 0.06)';
+          ctx.fillRect(4, 4, 24, 24);
+        } else if (b.index === 8 && (v === 1 || v === 2)) {
+          // Dimensão Caótica: jagged crimson & cyan rift fractures
+          ctx.strokeStyle = v === 1 ? 'rgba(244, 63, 94, 0.52)' : 'rgba(56, 189, 248, 0.42)';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(10, 50);
+          ctx.lineTo(28, 34);
+          ctx.lineTo(48, 42);
+          ctx.stroke();
+        } else if (b.index === 9 && v === 0) {
+          // Domínio Celestial: inlaid gold temple geometry
+          ctx.strokeStyle = 'rgba(250, 204, 21, 0.28)';
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.moveTo(32, 10);
+          ctx.lineTo(54, 32);
+          ctx.lineTo(32, 54);
+          ctx.lineTo(10, 32);
+          ctx.closePath();
+          ctx.stroke();
         }
       });
     }
 
-    // Perimeter Wall Masonry Block (64x64) — sculpted ashlar brickwork with top parapet & deep front plinth
+    // 2) Perimeter Wall Block (64x64) — custom architectural identity per biome
     makeCanvas(scene, `wall_${b.index}`, 64, 64, (ctx, w, h) => {
       ctx.fillStyle = '#09080c';
       ctx.fillRect(0, 0, w, h);
 
-      // Top stone parapet surface (44px)
+      if (b.index === 2) {
+        // Floresta Sombria: dark stone cliff + dense twisted pine canopy border
+        ctx.fillStyle = '#18241d';
+        ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = '#0f1c15';
+        ctx.fillRect(0, 44, w, 20);
+        const circles = [
+          [14, 18, 16, '#1f3b2c'],
+          [34, 14, 18, '#173022'],
+          [50, 22, 15, '#254735'],
+          [24, 34, 16, '#1c3829'],
+          [44, 36, 15, '#13281d'],
+        ] as const;
+        for (const [cx, cy, r, col] of circles) {
+          ctx.fillStyle = col;
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#09110d';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        }
+        ctx.fillStyle = 'rgba(110, 231, 183, 0.16)';
+        ctx.fillRect(10, 10, 8, 4);
+        ctx.fillRect(36, 12, 10, 4);
+        return;
+      }
+
+      if (b.index === 1) {
+        // Cavernas Corrompidas: jagged indigo rock wall with embedded glowing crystals
+        const rg = ctx.createLinearGradient(0, 0, 0, h);
+        rg.addColorStop(0, '#3a2754');
+        rg.addColorStop(0.6, '#231636');
+        rg.addColorStop(1, '#100a1c');
+        ctx.fillStyle = rg;
+        ctx.fillRect(1, 1, w - 2, h - 2);
+        // Jagged rocky facets
+        ctx.fillStyle = '#4e3570';
+        ctx.beginPath();
+        ctx.moveTo(2, 2);
+        ctx.lineTo(28, 6);
+        ctx.lineTo(18, 28);
+        ctx.lineTo(2, 22);
+        ctx.closePath();
+        ctx.fill();
+        // Embedded glowing cyan & magenta crystal shards
+        ctx.fillStyle = '#c084fc';
+        ctx.beginPath();
+        ctx.moveTo(46, 10);
+        ctx.lineTo(54, 24);
+        ctx.lineTo(42, 28);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#38bdf8';
+        ctx.beginPath();
+        ctx.moveTo(16, 36);
+        ctx.lineTo(24, 48);
+        ctx.lineTo(10, 50);
+        ctx.closePath();
+        ctx.fill();
+        return;
+      }
+
+      // Sculpted masonry base for architectural biomes
       const topG = ctx.createLinearGradient(0, 0, 0, 46);
       topG.addColorStop(0, b.wallHighlight);
-      topG.addColorStop(0.22, b.wallPrimary);
+      topG.addColorStop(0.24, b.wallPrimary);
       topG.addColorStop(1, b.floorSecondary);
       ctx.fillStyle = topG;
       ctx.fillRect(1, 1, w - 2, 45);
 
-      // Offset ashlar brick courses on parapet
       ctx.strokeStyle = 'rgba(8, 7, 12, 0.72)';
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -165,54 +353,274 @@ function generateBiomeTiles(scene: Phaser.Scene) {
       ctx.lineTo(32, 46);
       ctx.stroke();
 
-      // Subtle bevel highlights along brick upper edges
-      ctx.fillStyle = 'rgba(255,255,255,0.08)';
-      ctx.fillRect(2, 2, w - 4, 2);
-      ctx.fillRect(2, 17, w - 4, 1.5);
-      ctx.fillRect(2, 32, w - 4, 1.5);
-
-      // Front vertical wall drop face (gives clean 2.5D top-down depth)
       const frontG = ctx.createLinearGradient(0, 46, 0, h);
       frontG.addColorStop(0, b.wallPrimary);
-      frontG.addColorStop(0.28, b.floorSecondary);
+      frontG.addColorStop(0.32, b.floorSecondary);
       frontG.addColorStop(1, '#08070b');
       ctx.fillStyle = frontG;
       ctx.fillRect(1, 46, w - 2, 17);
 
-      // Vertical stone joint on front face + top rim cornice shadow
-      ctx.fillStyle = 'rgba(0,0,0,0.55)';
-      ctx.fillRect(1, 45, w - 2, 2);
-      ctx.fillRect(22, 47, 2, 15);
-      ctx.fillRect(46, 47, 2, 15);
-      ctx.fillStyle = 'rgba(255,255,255,0.06)';
-      ctx.fillRect(2, 47, w - 4, 1.5);
+      // Biome-specific wall crowning details
+      if (b.index === 3) {
+        // Fortaleza Infernal: molten lava glow strip along the wall moat base!
+        const lg = ctx.createLinearGradient(0, 54, 0, 64);
+        lg.addColorStop(0, 'rgba(239, 68, 68, 0.2)');
+        lg.addColorStop(1, 'rgba(249, 115, 22, 0.85)');
+        ctx.fillStyle = lg;
+        ctx.fillRect(1, 54, w - 2, 9);
+      } else if (b.index === 4) {
+        // Reino Congelado: bright snow cap draped along top & hanging icicles
+        ctx.fillStyle = '#dbeafe';
+        ctx.fillRect(1, 1, w - 2, 8);
+        ctx.fillStyle = '#93c5fd';
+        for (const ix of [10, 26, 44, 56]) {
+          ctx.beginPath();
+          ctx.moveTo(ix - 3, 46);
+          ctx.lineTo(ix + 3, 46);
+          ctx.lineTo(ix, 55);
+          ctx.closePath();
+          ctx.fill();
+        }
+      } else if (b.index === 5) {
+        // Abismo: luminous cyan-violet astral lightning rim
+        ctx.strokeStyle = '#c084fc';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(2, 46);
+        ctx.lineTo(18, 49);
+        ctx.lineTo(36, 45);
+        ctx.lineTo(62, 48);
+        ctx.stroke();
+      } else if (b.index === 6) {
+        // Templo dos Mortos: recessed skull/teal rune band
+        ctx.fillStyle = 'rgba(45, 212, 191, 0.45)';
+        ctx.fillRect(26, 20, 12, 6);
+      } else if (b.index === 8) {
+        // Dimensão Caótica: unstable crimson & cyan fracture bars
+        ctx.fillStyle = 'rgba(244, 63, 94, 0.6)';
+        ctx.fillRect(2, 45, w - 4, 3);
+      } else if (b.index === 9) {
+        // Domínio Celestial: gilded gold temple cornice
+        ctx.fillStyle = '#eab308';
+        ctx.fillRect(1, 1, w - 2, 4);
+        ctx.fillRect(1, 44, w - 2, 3);
+      }
     });
 
-    // Dedicated Arena Gothic Pillar (64x64) — carved stepped stone column with iron clasps & subtle biome sigil
+    // 3) Biome-Unique Arena Obstacles / Pillars (64x64) — truly distinct silhouettes!
     makeCanvas(scene, `pillar_${b.index}`, 64, 64, (ctx, w, h) => {
-      // Soft cast ground shadow beneath column
-      const sh = ctx.createRadialGradient(32, 38, 10, 32, 38, 31);
-      sh.addColorStop(0, 'rgba(0,0,0,0.62)');
+      // Soft ground shadow
+      const sh = ctx.createRadialGradient(32, 40, 10, 32, 40, 31);
+      sh.addColorStop(0, 'rgba(0,0,0,0.65)');
       sh.addColorStop(0.75, 'rgba(0,0,0,0.34)');
       sh.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = sh;
       ctx.fillRect(0, 0, w, h);
 
-      // Stepped lower stone plinth
+      if (b.index === 1) {
+        // Cavernas Corrompidas: towering purple & cyan crystal cluster!
+        const drawShard = (cx: number, by: number, tx: number, ty: number, halfW: number, fill: string, hi: string) => {
+          ctx.fillStyle = fill;
+          ctx.strokeStyle = '#120820';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(tx, ty);
+          ctx.lineTo(cx + halfW, by - 10);
+          ctx.lineTo(cx + halfW * 0.7, by);
+          ctx.lineTo(cx - halfW * 0.7, by);
+          ctx.lineTo(cx - halfW, by - 10);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = hi;
+          ctx.beginPath();
+          ctx.moveTo(tx, ty + 3);
+          ctx.lineTo(cx, by - 4);
+          ctx.lineTo(cx - halfW * 0.7, by - 10);
+          ctx.closePath();
+          ctx.fill();
+        };
+        drawShard(18, 54, 12, 18, 9, '#7e22ce', '#e879f9');
+        drawShard(46, 54, 52, 20, 9, '#0284c7', '#7dd3fc');
+        drawShard(32, 56, 32, 4, 13, '#9333ea', '#f0abfc');
+        return;
+      }
+
+      if (b.index === 2) {
+        // Floresta Sombria: gnarled ancient pine/oak tree!
+        ctx.fillStyle = '#3b2618';
+        ctx.strokeStyle = '#0c0806';
+        ctx.lineWidth = 2;
+        ctx.fillRect(25, 36, 14, 22);
+        ctx.strokeRect(25, 36, 14, 22);
+        // Layered dark emerald foliage crown
+        const blobs = [
+          [22, 32, 16, '#143324'],
+          [42, 32, 16, '#143324'],
+          [32, 22, 20, '#1d4d35'],
+          [27, 17, 11, '#2b6b4a'],
+        ] as const;
+        for (const [bx, by, r, col] of blobs) {
+          ctx.fillStyle = col;
+          ctx.beginPath();
+          ctx.arc(bx, by, r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#09150e';
+          ctx.lineWidth = 1.6;
+          ctx.stroke();
+        }
+        // Firefly glow dot in leaves
+        ctx.fillStyle = '#6ee7b7';
+        ctx.fillRect(36, 18, 3, 3);
+        ctx.fillRect(22, 26, 2.5, 2.5);
+        return;
+      }
+
+      if (b.index === 3) {
+        // Fortaleza Infernal: chained basalt furnace obelisk with glowing magma basin
+        ctx.fillStyle = '#1f1010';
+        ctx.strokeStyle = '#080506';
+        ctx.lineWidth = 2;
+        ctx.fillRect(6, 10, 52, 48);
+        ctx.strokeRect(6, 10, 52, 48);
+        ctx.fillStyle = '#3a1a1a';
+        ctx.fillRect(10, 8, 44, 38);
+        ctx.strokeRect(10, 8, 44, 38);
+        // Central glowing magma grate
+        const mg = ctx.createRadialGradient(32, 27, 2, 32, 27, 15);
+        mg.addColorStop(0, '#fef08a');
+        mg.addColorStop(0.5, '#f97316');
+        mg.addColorStop(1, '#7f1d1d');
+        ctx.fillStyle = mg;
+        ctx.fillRect(18, 15, 28, 24);
+        // Heavy iron prison bars over the magma
+        ctx.strokeStyle = '#18181b';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(25, 15);
+        ctx.lineTo(25, 39);
+        ctx.moveTo(32, 15);
+        ctx.lineTo(32, 39);
+        ctx.moveTo(39, 15);
+        ctx.lineTo(39, 39);
+        ctx.stroke();
+        return;
+      }
+
+      if (b.index === 4) {
+        // Reino Congelado: sculpted glacial ice & snow bastion monolith
+        ctx.fillStyle = '#1e3a5f';
+        ctx.strokeStyle = '#0b1829';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(10, 56);
+        ctx.lineTo(14, 12);
+        ctx.lineTo(32, 4);
+        ctx.lineTo(50, 12);
+        ctx.lineTo(54, 56);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        const ig = ctx.createLinearGradient(14, 8, 50, 48);
+        ig.addColorStop(0, '#e0f2fe');
+        ig.addColorStop(0.4, '#38bdf8');
+        ig.addColorStop(1, '#1e3a5f');
+        ctx.fillStyle = ig;
+        ctx.beginPath();
+        ctx.moveTo(16, 48);
+        ctx.lineTo(20, 15);
+        ctx.lineTo(32, 9);
+        ctx.lineTo(44, 15);
+        ctx.lineTo(48, 48);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(24, 14, 4, 18);
+        return;
+      }
+
+      if (b.index === 5 || b.index === 8) {
+        // Abismo / Dimensão Caótica: levitating runic monolith over glowing energy halo
+        const glowColor = b.index === 5 ? 'rgba(192,38,211,0.5)' : 'rgba(244,63,94,0.5)';
+        const halo = ctx.createRadialGradient(32, 36, 4, 32, 36, 28);
+        halo.addColorStop(0, glowColor);
+        halo.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = halo;
+        ctx.beginPath();
+        ctx.arc(32, 36, 28, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = b.index === 5 ? '#261842' : '#3a162b';
+        ctx.strokeStyle = b.index === 5 ? '#e879f9' : '#fb7185';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(32, 4);
+        ctx.lineTo(49, 24);
+        ctx.lineTo(42, 54);
+        ctx.lineTo(22, 54);
+        ctx.lineTo(15, 24);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = b.index === 5 ? '#38bdf8' : '#facc15';
+        ctx.fillRect(30, 18, 4, 22);
+        return;
+      }
+
+      if (b.index === 6) {
+        // Templo dos Mortos: carved tomb sarcophagus with teal spirit flames
+        ctx.fillStyle = '#242e2b';
+        ctx.strokeStyle = '#090e0c';
+        ctx.lineWidth = 2;
+        ctx.fillRect(10, 8, 44, 50);
+        ctx.strokeRect(10, 8, 44, 50);
+        ctx.fillStyle = '#384842';
+        ctx.fillRect(14, 12, 36, 36);
+        ctx.strokeStyle = '#2dd4bf';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(32, 16);
+        ctx.lineTo(32, 42);
+        ctx.moveTo(22, 26);
+        ctx.lineTo(42, 26);
+        ctx.stroke();
+        return;
+      }
+
+      if (b.index === 9) {
+        // Domínio Celestial: fluted gilded marble temple column with sunburst crest
+        ctx.fillStyle = '#4a3d28';
+        ctx.strokeStyle = '#1c150a';
+        ctx.lineWidth = 2;
+        ctx.fillRect(6, 10, 52, 48);
+        ctx.strokeRect(6, 10, 52, 48);
+        const cg = ctx.createLinearGradient(10, 6, 54, 46);
+        cg.addColorStop(0, '#fef3c7');
+        cg.addColorStop(0.5, '#d4a64a');
+        cg.addColorStop(1, '#785a28');
+        ctx.fillStyle = cg;
+        ctx.fillRect(10, 6, 44, 38);
+        ctx.strokeRect(10, 6, 44, 38);
+        ctx.fillStyle = '#fef9c3';
+        ctx.beginPath();
+        ctx.arc(32, 25, 9, 0, Math.PI * 2);
+        ctx.fill();
+        return;
+      }
+
+      // Ruínas (0) & Reino das Sombras (7): carved gothic column with distinct motifs
       ctx.fillStyle = b.floorSecondary;
       ctx.strokeStyle = '#09080c';
       ctx.lineWidth = 2;
       ctx.fillRect(4, 10, 56, 50);
       ctx.strokeRect(4, 10, 56, 50);
 
-      // Front face of column shaft
       const shaftG = ctx.createLinearGradient(8, 38, 8, 58);
       shaftG.addColorStop(0, b.wallPrimary);
       shaftG.addColorStop(1, '#0c0a12');
       ctx.fillStyle = shaftG;
       ctx.fillRect(7, 42, 50, 16);
 
-      // Carved top capital slab
       const capG = ctx.createLinearGradient(8, 5, 56, 46);
       capG.addColorStop(0, b.wallHighlight);
       capG.addColorStop(0.45, b.wallPrimary);
@@ -223,44 +631,262 @@ function generateBiomeTiles(scene: Phaser.Scene) {
       ctx.lineWidth = 2;
       ctx.strokeRect(7, 5, 50, 40);
 
-      // Recessed inner stone frame on top cap
-      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(12, 10, 40, 30);
-
-      // Corner wrought-iron clasps
-      ctx.fillStyle = '#27272a';
-      ctx.strokeStyle = '#09080c';
-      ctx.lineWidth = 1;
-      for (const [rx, ry] of [
-        [7, 5],
-        [49, 5],
-        [7, 37],
-        [49, 37],
-      ]) {
-        ctx.fillRect(rx, ry, 8, 8);
-        ctx.strokeRect(rx, ry, 8, 8);
-        ctx.fillStyle = '#94a3b8';
-        ctx.fillRect(rx + 2, ry + 2, 2, 2);
-        ctx.fillStyle = '#27272a';
-      }
-
-      // Subtle engraved biome rune diamond in crown center
-      ctx.save();
       ctx.strokeStyle = b.accentGlow;
-      ctx.globalAlpha = 0.55;
-      ctx.lineWidth = 1.6;
+      ctx.globalAlpha = 0.65;
+      ctx.lineWidth = 1.8;
+      if (b.index === 7) {
+        // Eclipse crescent rune for Shadow Realm
+        ctx.beginPath();
+        ctx.arc(32, 25, 10, 0.4, Math.PI * 1.8);
+        ctx.stroke();
+      } else {
+        // Weathered royal diamond rune & warm candle dot for Ruins
+        ctx.beginPath();
+        ctx.moveTo(32, 15);
+        ctx.lineTo(41, 25);
+        ctx.lineTo(32, 35);
+        ctx.lineTo(23, 25);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.fillStyle = '#fbbf24';
+        ctx.globalAlpha = 0.85;
+        ctx.fillRect(13, 10, 3, 4);
+      }
+      ctx.globalAlpha = 1;
+    });
+
+    // 4) Non-blocking Atmospheric Decor Props (2 variants per biome)
+    for (let dv = 0; dv < 2; dv++) {
+      makeCanvas(scene, `decor_${b.index}_${dv}`, 48, 48, (ctx) => {
+        if (b.index === 0) {
+          if (dv === 0) {
+            // Ruins: candle cluster + weathered skull
+            ctx.fillStyle = '#cbd5e1';
+            ctx.beginPath();
+            ctx.arc(18, 28, 6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(15, 27, 2, 2);
+            ctx.fillRect(19, 27, 2, 2);
+            const cg = ctx.createRadialGradient(32, 22, 1, 32, 22, 13);
+            cg.addColorStop(0, 'rgba(254, 240, 138, 0.85)');
+            cg.addColorStop(1, 'rgba(245, 158, 11, 0)');
+            ctx.fillStyle = cg;
+            ctx.beginPath();
+            ctx.arc(32, 22, 13, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#e7e5e4';
+            ctx.fillRect(30, 22, 4, 9);
+            ctx.fillStyle = '#fef08a';
+            ctx.fillRect(31, 18, 2.5, 4);
+          } else {
+            // Cracked banner & stone rubble
+            ctx.fillStyle = '#524b5c';
+            ctx.fillRect(10, 20, 14, 10);
+            ctx.fillRect(26, 26, 10, 8);
+            ctx.fillStyle = 'rgba(180, 83, 9, 0.55)';
+            ctx.fillRect(16, 12, 18, 6);
+          }
+        } else if (b.index === 1) {
+          // Caverns: glowing small purple / cyan crystal clusters
+          const main = dv === 0 ? '#a855f7' : '#38bdf8';
+          const light = dv === 0 ? '#f0abfc' : '#bae6fd';
+          const g = ctx.createRadialGradient(24, 24, 2, 24, 24, 18);
+          g.addColorStop(0, main);
+          g.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.globalAlpha = 0.4;
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(24, 24, 18, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = main;
+          ctx.beginPath();
+          ctx.moveTo(24, 10);
+          ctx.lineTo(31, 32);
+          ctx.lineTo(17, 32);
+          ctx.closePath();
+          ctx.fill();
+          ctx.fillStyle = light;
+          ctx.beginPath();
+          ctx.moveTo(24, 12);
+          ctx.lineTo(24, 30);
+          ctx.lineTo(18, 30);
+          ctx.closePath();
+          ctx.fill();
+        } else if (b.index === 2) {
+          if (dv === 0) {
+            // Forest warm woodland lantern
+            const lg = ctx.createRadialGradient(24, 24, 2, 24, 24, 17);
+            lg.addColorStop(0, 'rgba(253, 224, 71, 0.72)');
+            lg.addColorStop(1, 'rgba(245, 158, 11, 0)');
+            ctx.fillStyle = lg;
+            ctx.beginPath();
+            ctx.arc(24, 24, 17, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#27272a';
+            ctx.fillRect(20, 18, 8, 12);
+            ctx.fillStyle = '#fef08a';
+            ctx.fillRect(22, 20, 4, 8);
+          } else {
+            // Glowing emerald mushrooms & fern
+            ctx.fillStyle = '#15803d';
+            ctx.beginPath();
+            ctx.arc(18, 28, 7, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#34d399';
+            ctx.beginPath();
+            ctx.arc(28, 24, 5, Math.PI, 0);
+            ctx.fill();
+            ctx.fillStyle = '#ecfdf5';
+            ctx.fillRect(27, 24, 2, 6);
+          }
+        } else if (b.index === 3) {
+          if (dv === 0) {
+            // Lava floor iron grate
+            ctx.fillStyle = '#ea580c';
+            ctx.fillRect(10, 10, 28, 28);
+            ctx.strokeStyle = '#18181b';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(10, 10, 28, 28);
+            ctx.beginPath();
+            ctx.moveTo(19, 10);
+            ctx.lineTo(19, 38);
+            ctx.moveTo(29, 10);
+            ctx.lineTo(29, 38);
+            ctx.moveTo(10, 24);
+            ctx.lineTo(38, 24);
+            ctx.stroke();
+          } else {
+            // Blazing magma floor sigil
+            ctx.strokeStyle = '#f97316';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(24, 24, 14, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(24, 8);
+            ctx.lineTo(24, 40);
+            ctx.moveTo(8, 24);
+            ctx.lineTo(40, 24);
+            ctx.stroke();
+          }
+        } else if (b.index === 4) {
+          // Frozen: snowdrift mound / frost crystal spire
+          ctx.fillStyle = dv === 0 ? 'rgba(224, 242, 254, 0.45)' : 'rgba(56, 189, 248, 0.55)';
+          ctx.beginPath();
+          ctx.ellipse(24, 28, 16, 9, 0, 0, Math.PI * 2);
+          ctx.fill();
+          if (dv === 1) {
+            ctx.fillStyle = '#bae6fd';
+            ctx.beginPath();
+            ctx.moveTo(24, 10);
+            ctx.lineTo(30, 28);
+            ctx.lineTo(18, 28);
+            ctx.closePath();
+            ctx.fill();
+          }
+        } else if (b.index === 5) {
+          // Abyss: crackling cyan-violet void tear
+          ctx.strokeStyle = dv === 0 ? '#e879f9' : '#38bdf8';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(10, 28);
+          ctx.lineTo(22, 18);
+          ctx.lineTo(30, 26);
+          ctx.lineTo(40, 14);
+          ctx.stroke();
+        } else if (b.index === 6) {
+          // Temple of the Dead: spectral teal candle shrine / bone glyph
+          const g = ctx.createRadialGradient(24, 24, 2, 24, 24, 16);
+          g.addColorStop(0, 'rgba(45, 212, 191, 0.65)');
+          g.addColorStop(1, 'rgba(20, 184, 166, 0)');
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(24, 24, 16, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#5eead4';
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(16, 16, 16, 16);
+        } else if (b.index === 7) {
+          // Shadow Realm: eclipse ring pool
+          ctx.strokeStyle = 'rgba(129, 140, 248, 0.45)';
+          ctx.lineWidth = 1.6;
+          ctx.beginPath();
+          ctx.arc(24, 24, 13, 0, Math.PI * 2);
+          ctx.stroke();
+        } else if (b.index === 8) {
+          // Chaos: jagged reality crack
+          ctx.strokeStyle = dv === 0 ? '#f43f5e' : '#facc15';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(12, 12);
+          ctx.lineTo(26, 22);
+          ctx.lineTo(18, 34);
+          ctx.lineTo(36, 36);
+          ctx.stroke();
+        } else {
+          // Celestial: golden sunburst floor medallion
+          ctx.strokeStyle = 'rgba(250, 204, 21, 0.55)';
+          ctx.lineWidth = 1.6;
+          ctx.beginPath();
+          ctx.arc(24, 24, 13, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(24, 8);
+          ctx.lineTo(24, 40);
+          ctx.moveTo(8, 24);
+          ctx.lineTo(40, 24);
+          ctx.stroke();
+        }
+      });
+    }
+
+    // 5) Biome-Specific Exit Portal (84x84)
+    makeCanvas(scene, `portal_biome_${b.index}`, 84, 84, (ctx) => {
+      const cx = 42;
+      const cy = 42;
+      const outer = ctx.createRadialGradient(cx, cy, 8, cx, cy, 40);
+      outer.addColorStop(0, '#ffffff');
+      outer.addColorStop(0.32, b.accentGlow);
+      outer.addColorStop(0.7, `${b.accentGlow}55`);
+      outer.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = outer;
       ctx.beginPath();
-      ctx.moveTo(32, 15);
-      ctx.lineTo(41, 25);
-      ctx.lineTo(32, 35);
-      ctx.lineTo(23, 25);
-      ctx.closePath();
-      ctx.stroke();
-      ctx.fillStyle = b.accentGlow;
-      ctx.globalAlpha = 0.25;
+      ctx.arc(cx, cy, 40, 0, Math.PI * 2);
       ctx.fill();
-      ctx.restore();
+
+      // Ornate stone / elemental ring matching biome
+      ctx.strokeStyle = b.wallHighlight;
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 30, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = b.accentGlow;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 24, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Inner swirling core
+      const core = ctx.createRadialGradient(cx, cy, 2, cx, cy, 21);
+      core.addColorStop(0, '#fefce8');
+      core.addColorStop(0.45, b.accentGlow);
+      core.addColorStop(1, '#090710');
+      ctx.fillStyle = core;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 21, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Cardinal biome keystone pips
+      ctx.fillStyle = '#fef3c7';
+      for (let i = 0; i < 4; i++) {
+        const ang = (i * Math.PI) / 2;
+        ctx.beginPath();
+        ctx.arc(cx + Math.cos(ang) * 30, cy + Math.sin(ang) * 30, 3.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
     });
   }
 }
@@ -3344,6 +3970,52 @@ function generatePropsAndPickups(scene: Phaser.Scene) {
     ctx.lineTo(24, 18);
     ctx.lineTo(18, 26);
     ctx.lineTo(12, 18);
+    ctx.closePath();
+    ctx.fill();
+  });
+
+  // Ancient Memory Fragment Relic Shrine (56x64)
+  makeCanvas(scene, 'prop_memory_fragment', 56, 64, (ctx) => {
+    const cx = 28;
+    const halo = ctx.createRadialGradient(cx, 28, 4, cx, 28, 26);
+    halo.addColorStop(0, 'rgba(254, 243, 199, 0.92)');
+    halo.addColorStop(0.45, 'rgba(227, 181, 92, 0.45)');
+    halo.addColorStop(1, 'rgba(147, 51, 234, 0)');
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(cx, 28, 26, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Small carved stone pedestal
+    ctx.fillStyle = '#2b2638';
+    ctx.strokeStyle = '#09080c';
+    ctx.lineWidth = 2;
+    ctx.fillRect(14, 44, 28, 14);
+    ctx.strokeRect(14, 44, 28, 14);
+
+    // Floating golden-violet memory crystal shard
+    const cg = ctx.createLinearGradient(cx - 10, 8, cx + 10, 42);
+    cg.addColorStop(0, '#fef9c3');
+    cg.addColorStop(0.5, '#e3b55c');
+    cg.addColorStop(1, '#9333ea');
+    ctx.fillStyle = cg;
+    ctx.strokeStyle = '#1c150e';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, 6);
+    ctx.lineTo(cx + 12, 24);
+    ctx.lineTo(cx, 42);
+    ctx.lineTo(cx - 12, 24);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(cx, 12);
+    ctx.lineTo(cx + 4, 24);
+    ctx.lineTo(cx, 35);
+    ctx.lineTo(cx - 4, 24);
     ctx.closePath();
     ctx.fill();
   });

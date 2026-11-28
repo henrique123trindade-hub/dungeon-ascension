@@ -20,6 +20,14 @@ export interface LevelUpOfferPayload {
   pointerWasDown: boolean;
 }
 
+export interface BossDialogueEventPayload {
+  bossId: string;
+  bossName: string;
+  stage: 'intro' | 'midPhase' | 'defeat';
+  text: string;
+  accentColor: string;
+}
+
 export interface BridgeCallbacks {
   onHudUpdate: (hud: RunHUDSnapshot) => void;
   onLevelUpOffer: (payload: LevelUpOfferPayload) => void;
@@ -32,6 +40,15 @@ export interface BridgeCallbacks {
     level: number;
     crystalsDelta: number;
   }) => void;
+  onFloorEntered?: (floor: number, previousFloor: number) => void;
+  onBossDialogue?: (payload: BossDialogueEventPayload) => void;
+  onBossDefeatedNarrative?: (bossId: string, floor: number) => void;
+  onMemoryFragmentSource?: (
+    source: 'boss' | 'chest' | 'altar' | 'event' | 'secret_room' | 'exploration',
+    floor: number,
+    bossId?: string
+  ) => void;
+  onMythicPicked?: () => void;
 }
 
 export interface DungeonController {
@@ -58,6 +75,7 @@ export interface DungeonController {
   stopRun: () => void;
   getCurrentHud: () => RunHUDSnapshot | null;
   debugGrantXp?: (amount: number) => void;
+  debugJumpToFloor?: (floor: number) => void;
 }
 
 class PhaserBridge {
@@ -106,6 +124,30 @@ class PhaserBridge {
 
   public emitQuickSave(delta: { floor: number; level: number; crystalsDelta: number }) {
     this.callbacks?.onQuickSaveProgress(delta);
+  }
+
+  public emitFloorEntered(floor: number, previousFloor: number) {
+    this.callbacks?.onFloorEntered?.(floor, previousFloor);
+  }
+
+  public emitBossDialogue(payload: BossDialogueEventPayload) {
+    this.callbacks?.onBossDialogue?.(payload);
+  }
+
+  public emitBossDefeatedNarrative(bossId: string, floor: number) {
+    this.callbacks?.onBossDefeatedNarrative?.(bossId, floor);
+  }
+
+  public emitMemoryFragmentSource(
+    source: 'boss' | 'chest' | 'altar' | 'event' | 'secret_room' | 'exploration',
+    floor: number,
+    bossId?: string
+  ) {
+    this.callbacks?.onMemoryFragmentSource?.(source, floor, bossId);
+  }
+
+  public emitMythicPicked() {
+    this.callbacks?.onMythicPicked?.();
   }
 }
 

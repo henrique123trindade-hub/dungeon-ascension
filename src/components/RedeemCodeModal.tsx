@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { CLASSES } from '../game/data/classes';
-import { SECRET_CODES, type SecretCodeDef } from '../game/data/secretCodes';
+import { matchesSecretCodeEntry, SECRET_CODES, type SecretCodeDef } from '../game/data/secretCodes';
 import { SKILLS } from '../game/data/skills';
 import type { RedeemCodeResult } from '../game/systems/secretCodeManager';
 import type { ClassId } from '../game/types';
@@ -8,7 +8,7 @@ import { ClassIcon, SecretKeyIcon, SkillIcon } from './Icons';
 
 interface RedeemCodeModalProps {
   redeemedCodes: string[];
-  onRedeem: (rawCode: string) => RedeemCodeResult;
+  onRedeem: (rawCode: string) => Promise<RedeemCodeResult>;
   onPlayClass: (classId: ClassId) => void;
   onOpenClasses: (selectClassId?: ClassId) => void;
   onClose: () => void;
@@ -22,6 +22,7 @@ export function RedeemCodeModal({
   onClose,
 }: RedeemCodeModalProps) {
   const [codeInput, setCodeInput] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{
     status: RedeemCodeResult['status'];
     message: string;
@@ -33,13 +34,19 @@ export function RedeemCodeModal({
     inputRef.current?.focus();
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = onRedeem(codeInput);
-    setFeedback({ status: res.status, message: res.message });
-    if (res.status === 'success' && res.codeDef) {
-      setCodeInput('');
-      setUnlockedDef(res.codeDef);
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      const res = await onRedeem(codeInput);
+      setFeedback({ status: res.status, message: res.message });
+      if (res.status === 'success' && res.codeDef) {
+        setCodeInput('');
+        setUnlockedDef(res.codeDef);
+      }
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -274,9 +281,10 @@ export function RedeemCodeModal({
               <button
                 type="submit"
                 data-testid="secret-code-submit"
-                className="px-5 py-2.5 bg-[#241c13] hover:bg-[#332719] text-[#f8e3a8] font-display font-bold text-xs tracking-[0.14em] uppercase border border-[#d4a64a]/65 transition-colors cursor-pointer whitespace-nowrap"
+                disabled={submitting}
+                className="px-5 py-2.5 bg-[#241c13] hover:bg-[#332719] disabled:opacity-60 text-[#f8e3a8] font-display font-bold text-xs tracking-[0.14em] uppercase border border-[#d4a64a]/65 transition-colors cursor-pointer whitespace-nowrap"
               >
-                Resgatar
+                {submitting ? 'Validando...' : 'Resgatar'}
               </button>
             </div>
           </form>
@@ -289,15 +297,17 @@ export function RedeemCodeModal({
               </div>
               <div className="space-y-1.5">
                 {redeemedCodes.map((code) => {
-                  const def = SECRET_CODES.find((c) => c.code === code);
+                  const def = SECRET_CODES.find((c) => matchesSecretCodeEntry(code, c));
                   return (
                     <div
                       key={code}
                       className="flex items-center justify-between px-3 py-2 bg-[#121018] border border-white/10 text-xs"
                     >
-                      <span className="font-mono-num text-[#f3e3be]">{code}</span>
+                      <span className="font-medium text-[#f3e3be]">
+                        {def ? def.title : code}
+                      </span>
                       <span className="text-[#9c9487]">
-                        {def ? `${def.subtitle}: ${def.title}` : 'Recompensa resgatada'}
+                        {def ? def.subtitle : 'Recompensa resgatada'}
                       </span>
                     </div>
                   );

@@ -11,9 +11,12 @@ export type ActiveModalType =
   | 'codex'
   | 'settings'
   | 'redeemCode'
+  | 'profile'
+  | 'auth'
   | 'levelUp'
   | 'character'
-  | 'event';
+  | 'event'
+  | 'archive';
 
 export type SkillId =
   | 'fireball'
@@ -308,6 +311,59 @@ export interface SettingsData {
   defaultCastMode: CastMode;
   dashCastMode: CastMode;
   skillCastModes: Partial<Record<SkillId, CastMode>>;
+  skipRepeatedTransitions?: boolean;
+}
+
+export interface NarrativeProgress {
+  introSeen: boolean;
+  discoveredChapters: number[];
+  reachedBiomes: number[];
+  collectedFragments: string[];
+  discoveredBosses: string[];
+  defeatedBosses: string[];
+  unlockedCinematics: string[];
+  unlockedRevelations: number[];
+  triggeredWhispers: string[];
+  infiniteAscensionUnlocked: boolean;
+}
+
+export interface NarrativeOverlayPayload {
+  id: number;
+  kind: 'boss_dialogue' | 'tower_whisper' | 'fragment';
+  speaker: string;
+  subtitle?: string;
+  text: string;
+  accentColor: string;
+}
+
+export type BiomeEnvZoneKind =
+  | 'ruins_trap'
+  | 'cavern_crystal'
+  | 'forest_roots'
+  | 'fortress_lava'
+  | 'frozen_ice'
+  | 'abyss_rift'
+  | 'temple_gravestone'
+  | 'shadow_veil'
+  | 'chaos_nexus'
+  | 'celestial_sigil';
+
+export interface BiomeEnvZone {
+  id: string;
+  kind: BiomeEnvZoneKind;
+  x: number;
+  y: number;
+  radius: number;
+  width?: number;
+  height?: number;
+}
+
+export interface BiomeDecorProp {
+  x: number;
+  y: number;
+  variant: number;
+  scale: number;
+  flipX?: boolean;
 }
 
 export interface RunRecord {
@@ -325,6 +381,7 @@ export interface RunRecord {
 
 export interface SaveData {
   version: number;
+  saveVersion: number;
   crystals: number;
   totalCrystalsEarned: number;
   ascensionLevel: number;
@@ -335,6 +392,7 @@ export interface SaveData {
   totalKills: number;
   totalBossKills: number;
   totalRuns: number;
+  totalPlayTimeSec: number;
   bestiaryKills: Record<string, number>;
   discoveredSynergies: SynergyId[];
   unlockedAchievements: string[];
@@ -343,6 +401,52 @@ export interface SaveData {
   unlockedSecretClasses: ClassId[];
   records: RunRecord[];
   settings: SettingsData;
+  narrative: NarrativeProgress;
+}
+
+export type AvatarId =
+  | 'crest_emblem'
+  | 'warrior'
+  | 'assassin'
+  | 'mage'
+  | 'necromancer'
+  | 'archer'
+  | 'slatt'
+  | 'farid'
+  | 'baldasso';
+
+export type AuthProviderType = 'google' | 'password';
+
+export interface PlayerProfileData {
+  uid: string;
+  username: string;
+  usernameLower: string;
+  avatarId: AvatarId;
+  equippedTitle: string;
+  favoriteClass: ClassId;
+  publicProfile: boolean;
+  bestFloor: number;
+  bestLevel: number;
+  totalKills: number;
+  totalBossKills: number;
+  totalRuns: number;
+  totalPlayTimeSec: number;
+  ascensionLevel: number;
+  achievementsCount: number;
+  createdAtIso: string;
+  updatedAtIso: string;
+  lastLoginAtIso: string;
+}
+
+export interface PlayerAccountMeta {
+  uid: string;
+  email: string;
+  emailVerified: boolean;
+  authProvider: AuthProviderType;
+  role: 'player';
+  localMigrated: boolean;
+  createdAtIso: string;
+  lastLoginAtIso: string;
 }
 
 export interface ComputedPlayerStats {
@@ -461,6 +565,7 @@ export interface RunHUDSnapshot {
   } | null;
   activeCastSlot: number | null; // 0..3 for Q/E/R/F, -1 for Dash, null when idle
   autoAttackEnabled: boolean;
+  chaosModifier?: string | null;
 }
 
 export interface RunSummarySnapshot {

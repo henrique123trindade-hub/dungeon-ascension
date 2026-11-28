@@ -4,6 +4,7 @@ import { getBiomeForFloor, getInfiniteModifierForFloor } from '../data/biomes';
 import { getBossForFloor, isBossFloor } from '../data/bosses';
 import { CLASSES, getClassEvolution } from '../data/classes';
 import { ELITE_MODIFIER_LIST, ELITE_MODIFIERS, ENEMY_ARCHETYPES, ENEMY_LIST } from '../data/enemies';
+import { getBossDialogue } from '../data/lore';
 import { computeActiveSynergies, getSkillEvolutionTier, SKILLS } from '../data/skills';
 import { audioEngine } from '../systems/audioEngine';
 import {
@@ -30,6 +31,7 @@ import {
 import type {
   ActiveEventPayload,
   ActiveSkillSlotHUD,
+  BiomeEnvZone,
   BossDef,
   CastMode,
   ClassId,
@@ -111,6 +113,7 @@ interface EnemyEntity {
   bossPhase: number;
   strafeDir: number;
   summonCount: number;
+  isReanimated?: boolean;
 }
 
 interface PendingWaveSpawn {
@@ -191,7 +194,7 @@ interface PickupEntity {
 
 interface InteractableEntity {
   id: string;
-  kind: 'chest' | 'altar' | 'merchant' | 'dimension_portal';
+  kind: 'chest' | 'altar' | 'merchant' | 'dimension_portal' | 'memory_shrine';
   sprite: Phaser.GameObjects.Sprite;
   label: string;
   x: number;
@@ -324,6 +327,31 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
   private timedChallenge: { remainingSec: number; totalSec: number; rewarded: boolean } | null = null;
   private activeEventRef: InteractableEntity | null = null;
   private merchantStock: EquipmentItem[] = [];
+
+  // Biome environmental mechanics runtime
+  private envZonesRuntime: Array<
+    BiomeEnvZone & {
+      state: 'idle' | 'arming' | 'active' | 'cooldown';
+      timer: number;
+      maxTimer: number;
+      tickTimer: number;
+    }
+  > = [];
+  private reanimatingWisps: Array<{
+    x: number;
+    y: number;
+    timer: number;
+    maxTimer: number;
+    archetypeId: EnemyArchetypeId;
+  }> = [];
+  private chaosModIndex = 0;
+  private chaosModTimer = 12;
+  private activeChaosModLabel: string | null = null;
+  private playerInRoots = false;
+  private playerOnIce = false;
+  private playerAbyssRimBoost = false;
+  private playerAbyssPullX = 0;
+  private playerAbyssPullY = 0;
 
   // Actors & Pools
   private player!: Phaser.Physics.Arcade.Sprite;
@@ -673,6 +701,10 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     this.postModalClickSuppressTimer = 0;
     this.comboHits = 0;
     this.comboTimer = 0;
+    this.envZonesRuntime = [];
+    this.reanimatingWisps = [];
+    this.activeChaosModLabel = null;
+    audioEngine.stopAmbience();
   }
 
   public getCurrentHud(): RunHUDSnapshot | null {
@@ -694,7 +726,7 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     this.level = 1;
     this.xp = 0;
     this.xpToNext = xpForLevel(1);
-    this.floor = 1;
+    this.floor = 0;
     this.gold = 25;
     this.crystalsRun = 0;
     this.kills = 0;
@@ -898,9 +930,18 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     this.interactables = [];
     this.activeEventRef = null;
     this.timedChallenge = null;
+    this.envZonesRuntime = [];
+    this.reanimatingWisps = [];
+    this.activeChaosModLabel = null;
+    this.playerInRoots = false;
+    this.playerOnIce = false;
+    this.playerAbyssRimBoost = false;
+    this.playerAbyssPullX = 0;
+    this.playerAbyssPullY = 0;
   }
 
   private loadFloor(floorNum: number) {
+    const prevFloor = this.floor;
     this.clearFloorEntities();
     this.floor = floorNum;
     this.portalOpen = false;
@@ -1012,6 +1053,49 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
       }
     }
 
+    // Non-blocking atmospheric biome floor storytelling props
+    for (const dp of layout.decorProps) {
+      const texKey = `decor_${biome.index}_${dp.variant}`;
+      if (this.textures.exists(texKey)) {
+        const dec = this.add
+          .image(dp.x, dp.y, texKey)
+          .setScale(dp.scale)
+          .setFlipX(Boolean(dp.flipX))
+          .setAlpha(0.86)
+          .setDepth(8);
+        this.propGroup.add(dec);
+      }
+    }
+
+    // Initialize Biome Environmental Mechanics (fair & telegraphed)
+    this.envZonesRuntime = layout.envZones.map((z, idx) => ({
+      ...z,
+      state: 'idle',
+      timer:
+        z.kind === 'cavern_crystal'
+          ? 2.8 + idx * 1.4
+          : z.kind === 'celestial_sigil'
+            ? 2.4 + idx * 1.6
+            : 0,
+      maxTimer:
+        z.kind === 'ruins_trap'
+          ? 0.72
+          : z.kind === 'cavern_crystal'
+            ? 1.05
+            : z.kind === 'celestial_sigil'
+              ? 1.15
+              : 1.0,
+      tickTimer: 0,
+    }));
+
+    if (biome.index === 8) {
+      this.chaosModIndex = (floorNum - 1) % 3;
+      this.chaosModTimer = 12;
+      this.activeChaosModLabel = this.getChaosModifierLabel(this.chaosModIndex);
+    } else {
+      this.activeChaosModLabel = null;
+    }
+
     // Internal sculpted gothic pillars (distinct architecture from perimeter walls)
     for (const p of layout.pillars) {
       const pillar = this.wallGroup.create(p.x, p.y, pillarKey) as Phaser.Physics.Arcade.Sprite;
@@ -1064,6 +1148,16 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
         `${bossDef.isMegaBoss ? 'MEGA-CHEFE' : 'CHEFE'} DO ANDAR ${floorNum}: ${bossDef.name.toUpperCase()}`,
         'crimson'
       );
+      const bossDlg = getBossDialogue(bossDef.id);
+      if (bossDlg) {
+        phaserBridge.emitBossDialogue({
+          bossId: bossDef.id,
+          bossName: bossDef.name,
+          stage: 'intro',
+          text: bossDlg.intro,
+          accentColor: bossDef.accentColor,
+        });
+      }
     } else {
       this.triggerWaveSpawn(0, true, layout.enemySpawns);
       this.spawnRoomInteractables(floorNum, layout);
@@ -1073,6 +1167,10 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     if (floorNum > 1 && floorNum % 10 === 1) {
       this.pushNotice(`Novo Bioma: ${biome.name} — Perigo Elevado!`, 'violet');
     }
+
+    // Biome soundscape & narrative floor-entry hook
+    audioEngine.startBiomeAmbience(biome.index);
+    phaserBridge.emitFloorEntered(floorNum, prevFloor);
 
     // Sync progress record
     phaserBridge.emitQuickSave({ floor: floorNum, level: this.level, crystalsDelta: 0 });
@@ -1179,6 +1277,23 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     if (Math.random() < 0.18) {
       this.createInteractable('chest', posB.x, posB.y, 'Baú de Tesouro');
     }
+
+    // Exploration Memory Fragment Shrine (guaranteed on chapter openers & mid-chapter, random otherwise)
+    if (floorNum % 10 === 1 || floorNum % 10 === 4 || Math.random() < 0.42) {
+      const shrineCandidates = [
+        { x: Math.round(layout.roomWidth * 0.24), y: Math.round(layout.roomHeight * 0.26) },
+        { x: Math.round(layout.roomWidth * 0.76), y: Math.round(layout.roomHeight * 0.26) },
+        { x: Math.round(layout.roomWidth * 0.24), y: Math.round(layout.roomHeight * 0.74) },
+        { x: Math.round(layout.roomWidth * 0.76), y: Math.round(layout.roomHeight * 0.74) },
+      ];
+      const shrinePos =
+        shrineCandidates.find(
+          (pt) =>
+            !layout.pillars.some((p) => Math.abs(pt.x - p.x) < p.w * 0.9 && Math.abs(pt.y - p.y) < p.h * 0.9) &&
+            !this.interactables.some((it) => Math.hypot(pt.x - it.x, pt.y - it.y) < 88)
+        ) ?? shrineCandidates[0];
+      this.createInteractable('memory_shrine', shrinePos.x, shrinePos.y, 'Fragmento de Memória');
+    }
   }
 
   private createInteractable(
@@ -1194,7 +1309,9 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
           ? 'prop_altar'
           : kind === 'merchant'
             ? 'prop_merchant'
-            : 'prop_portal';
+            : kind === 'memory_shrine'
+              ? 'prop_memory_fragment'
+              : 'prop_portal';
     const scale =
       kind === 'chest'
         ? 0.62
@@ -1202,14 +1319,24 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
           ? 0.62
           : kind === 'merchant'
             ? 0.64
-            : 0.56;
+            : kind === 'memory_shrine'
+              ? 0.74
+              : 0.56;
     const sprite = this.add.sprite(x, y, tex).setScale(scale).setDepth(35);
     if (kind === 'dimension_portal') sprite.setTint(0xf43f5e);
     const auraColor =
-      kind === 'chest' ? 0xf59e0b : kind === 'altar' ? 0xdc2626 : kind === 'merchant' ? 0xeab308 : 0xe879f9;
+      kind === 'chest'
+        ? 0xf59e0b
+        : kind === 'altar'
+          ? 0xdc2626
+          : kind === 'merchant'
+            ? 0xeab308
+            : kind === 'memory_shrine'
+              ? 0xa78bfa
+              : 0xe879f9;
     const aura = this.add
-      .circle(x, y + 6, 30, auraColor, 0.08)
-      .setStrokeStyle(1.5, auraColor, 0.45)
+      .circle(x, y + 6, kind === 'memory_shrine' ? 24 : 30, auraColor, kind === 'memory_shrine' ? 0.14 : 0.08)
+      .setStrokeStyle(1.5, auraColor, kind === 'memory_shrine' ? 0.65 : 0.45)
       .setDepth(34);
     this.propGroup?.add(aura);
     this.interactables.push({
@@ -1430,6 +1557,7 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
       if (this.recentNoticeTimer <= 0) this.recentNotice = null;
     }
 
+    this.updateBiomeEnvironment(dt);
     this.updatePlayer(dt);
     this.updatePassivesAndSynergies(dt);
     this.updateEnemies(dt);
@@ -1452,14 +1580,45 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
       }
     }
 
-    // Ambient biome particles
+    // Distinct Ambient Biome Particles (snow, rising embers, fireflies, void sparks, golden motes, etc.)
     this.ambientParticleTimer -= dt;
     if (this.ambientParticleTimer <= 0 && this.settings.graphicsQuality !== 'low') {
-      this.ambientParticleTimer = this.settings.graphicsQuality === 'high' ? 0.16 : 0.35;
       const biome = getBiomeForFloor(this.floor);
-      const px = this.player.x + (Math.random() - 0.5) * 620;
-      const py = this.player.y + (Math.random() - 0.5) * 420;
-      this.spawnParticle(px, py, (Math.random() - 0.5) * 16, -24 - Math.random() * 18, biome.particleColor, 0.9, 0.55);
+      this.ambientParticleTimer =
+        this.settings.graphicsQuality === 'high'
+          ? biome.index === 4 || biome.index === 3
+            ? 0.11
+            : 0.15
+          : 0.34;
+      const px = this.player.x + (Math.random() - 0.5) * 680;
+      const py = this.player.y + (Math.random() - 0.5) * 460;
+      if (biome.index === 4) {
+        // Bastião Congelado: falling diagonal snowflakes
+        this.spawnParticle(px, py - 140, -18 - Math.random() * 20, 44 + Math.random() * 28, 0xe0f2fe, 1.3, 0.52);
+      } else if (biome.index === 3) {
+        // Fortaleza Demoníaca: rising hot lava embers
+        const emberCol = Math.random() < 0.5 ? 0xf97316 : 0xfacc15;
+        this.spawnParticle(px, py + 80, (Math.random() - 0.5) * 28, -52 - Math.random() * 38, emberCol, 0.95, 0.58);
+      } else if (biome.index === 2) {
+        // Floresta Sombria: drifting emerald fireflies
+        this.spawnParticle(px, py, (Math.random() - 0.5) * 34, -10 + (Math.random() - 0.5) * 22, 0x4ade80, 1.25, 0.62);
+      } else if (biome.index === 5) {
+        // Abismo Arcano: swirling violet sparks
+        const ang = Math.atan2(this.roomHeight / 2 - py, this.roomWidth / 2 - px);
+        this.spawnParticle(px, py, Math.cos(ang) * 34, Math.sin(ang) * 34, 0xc084fc, 1.0, 0.58);
+      } else if (biome.index === 6) {
+        // Templo dos Mortos: ascending pale soul wisps
+        this.spawnParticle(px, py + 40, (Math.random() - 0.5) * 14, -36 - Math.random() * 20, 0x5eead4, 1.15, 0.6);
+      } else if (biome.index === 8) {
+        // Dimensão Caótica: erratic crimson/cyan sparks
+        const chaosCol = Math.random() < 0.5 ? 0xf43f5e : 0x22d3ee;
+        this.spawnParticle(px, py, (Math.random() - 0.5) * 65, (Math.random() - 0.5) * 65, chaosCol, 0.75, 0.55);
+      } else if (biome.index === 9) {
+        // Domínio Celestial: ascending golden sun motes
+        this.spawnParticle(px, py + 60, (Math.random() - 0.5) * 12, -32 - Math.random() * 24, 0xfef08a, 1.2, 0.64);
+      } else {
+        this.spawnParticle(px, py, (Math.random() - 0.5) * 18, -22 - Math.random() * 18, biome.particleColor, 0.95, 0.54);
+      }
     }
 
     // Throttle HUD React updates to ~15Hz
@@ -1498,7 +1657,12 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     }
     if (this.dashCooldown > 0) this.dashCooldown = Math.max(0, this.dashCooldown - dt);
     if (this.dashBufferTimer > 0) this.dashBufferTimer = Math.max(0, this.dashBufferTimer - dt);
-    if (this.attackCooldown > 0) this.attackCooldown = Math.max(0, this.attackCooldown - dt);
+    const atkSpeedEnvMult =
+      (this.playerAbyssRimBoost ? 1.22 : 1) *
+      (this.activeChaosModLabel && this.chaosModIndex === 0 ? 1.25 : 1);
+    if (this.attackCooldown > 0) {
+      this.attackCooldown = Math.max(0, this.attackCooldown - dt * atkSpeedEnvMult);
+    }
     if (this.swiftKillTimer > 0) this.swiftKillTimer = Math.max(0, this.swiftKillTimer - dt);
     if (this.playerSlowTimer > 0) this.playerSlowTimer = Math.max(0, this.playerSlowTimer - dt);
     if (this.comboTimer > 0) {
@@ -1622,11 +1786,12 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
       }
     }
 
-    // Skill cooldown ticks
+    // Skill cooldown ticks (accelerated during Chaos Time-Flow modifier)
+    const cdEnvMult = this.activeChaosModLabel && this.chaosModIndex === 2 ? 1.3 : 1;
     for (const key of Object.keys(this.skillCooldowns) as SkillId[]) {
       const rem = this.skillCooldowns[key] ?? 0;
       if (rem > 0) {
-        this.skillCooldowns[key] = Math.max(0, rem - dt);
+        this.skillCooldowns[key] = Math.max(0, rem - dt * cdEnvMult);
       }
     }
 
@@ -1702,9 +1867,20 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
       }
     } else {
       const swiftMult = this.swiftKillTimer > 0 ? 1.15 : 1;
-      const slowMult = this.playerSlowTimer > 0 ? 0.65 : 1;
-      const speed = this.computedStats.moveSpeed * swiftMult * slowMult;
-      body.setVelocity(mx * speed, my * speed);
+      const slowMult = (this.playerSlowTimer > 0 ? 0.65 : 1) * (this.playerInRoots ? 0.68 : 1);
+      const chaosSpeedMult = this.activeChaosModLabel && this.chaosModIndex === 1 ? 1.2 : 1;
+      const speed = this.computedStats.moveSpeed * swiftMult * slowMult * chaosSpeedMult;
+      const targetVx = mx * speed + this.playerAbyssPullX;
+      const targetVy = my * speed + this.playerAbyssPullY;
+      if (this.playerOnIce) {
+        const lerpRate = Math.min(1, dt * 3.8);
+        body.setVelocity(
+          Phaser.Math.Linear(body.velocity.x, targetVx, lerpRate),
+          Phaser.Math.Linear(body.velocity.y, targetVy, lerpRate)
+        );
+      } else {
+        body.setVelocity(targetVx, targetVy);
+      }
 
       // Gait-synced squash & bob (scaled cleanly around HERO_BASE_SCALE)
       const frameDist = Math.hypot(body.velocity.x, body.velocity.y) * dt;
@@ -3381,6 +3557,18 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
         onComplete: () => phaseRing.destroy(),
       });
       this.pushNotice(`${boss.name} enfureceu — FASE ${e.bossPhase}!`, 'crimson');
+      if (e.bossPhase === 2) {
+        const dlg = getBossDialogue(boss.id);
+        if (dlg) {
+          phaserBridge.emitBossDialogue({
+            bossId: boss.id,
+            bossName: boss.name,
+            stage: 'midPhase',
+            text: dlg.midPhase,
+            accentColor: boss.accentColor,
+          });
+        }
+      }
       e.attackCooldown = 0.65;
       // Defensive shockwave nova on phase shift
       const burstOrbs = 8 + e.bossPhase * 2;
@@ -4148,7 +4336,36 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     if (!grantRewards) return;
 
     this.kills++;
-    if (isBoss) this.bossesKilled++;
+    if (isBoss && e.bossDef) {
+      this.bossesKilled++;
+      const dlg = getBossDialogue(e.bossDef.id);
+      if (dlg) {
+        phaserBridge.emitBossDialogue({
+          bossId: e.bossDef.id,
+          bossName: e.bossDef.name,
+          stage: 'defeat',
+          text: dlg.defeat,
+          accentColor: e.bossDef.accentColor,
+        });
+      }
+      phaserBridge.emitBossDefeatedNarrative(e.bossDef.id, this.floor);
+      phaserBridge.emitMemoryFragmentSource('boss', this.floor, e.bossDef.id);
+    } else if (
+      !isBoss &&
+      getBiomeForFloor(this.floor).index === 6 &&
+      !e.isReanimated &&
+      this.reanimatingWisps.length < 3 &&
+      Math.random() < 0.25
+    ) {
+      // Templo dos Mortos: telegraphed soul reanimation
+      this.reanimatingWisps.push({
+        x: e.sprite.x,
+        y: e.sprite.y,
+        timer: 1.65,
+        maxTimer: 1.65,
+        archetypeId: e.archetypeId,
+      });
+    }
     phaserBridge.emitKill(isBoss ? e.bossDef!.id : e.archetypeId, isBoss);
 
     // Swift-on-kill equipment effect
@@ -4547,6 +4764,10 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
       );
     }
 
+    if (option.rarity === 'mythic') {
+      phaserBridge.emitMythicPicked();
+    }
+
     this.recomputeStats(false);
     this.emitHudSnapshot(true);
     return { hasMorePending: this.levelUpPendingQueue > 0 };
@@ -4575,6 +4796,13 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
   public debugGrantXp(amount: number) {
     if (!this.isActiveRun || this.isEndingRun) return;
     this.grantXp(amount);
+  }
+
+  public debugJumpToFloor(floor: number) {
+    if (!this.isActiveRun || this.isEndingRun) return;
+    const target = Math.max(1, Math.min(250, Math.floor(floor)));
+    this.loadFloor(target);
+    this.emitHudSnapshot(true);
   }
 
   private updateTimedChallengeAndPortal(dt: number) {
@@ -4622,7 +4850,9 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
 
     if (floorCleared && !this.portalOpen) {
       this.portalOpen = true;
-      this.portalSprite = this.add.sprite(this.portalPos.x, this.portalPos.y, 'prop_portal').setScale(0.72).setDepth(38);
+      const portalTex = `portal_biome_${getBiomeForFloor(this.floor).index}`;
+      const chosenPortalTex = this.textures.exists(portalTex) ? portalTex : 'prop_portal';
+      this.portalSprite = this.add.sprite(this.portalPos.x, this.portalPos.y, chosenPortalTex).setScale(0.76).setDepth(38);
       audioEngine.playPortalOpen();
 
       // Floor clear XP & crystal bonus
@@ -4654,6 +4884,16 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     if (!near) return;
 
     this.activeEventRef = near;
+    if (near.kind === 'memory_shrine') {
+      near.used = true;
+      near.sprite.setAlpha(0.25);
+      this.spawnBurst(near.x, near.y, 0xa78bfa, 22, 165);
+      this.spawnBurst(near.x, near.y, 0xf8e3a8, 12, 115);
+      audioEngine.playMemoryFragment();
+      phaserBridge.emitMemoryFragmentSource('exploration', this.floor);
+      return;
+    }
+
     if (near.kind === 'chest') {
       near.used = true;
       near.sprite.setAlpha(0.35);
@@ -4668,6 +4908,9 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
       this.spawnPickup('crystal', near.x + 22, near.y + 10, 4 + Math.floor(this.floor / 4));
       audioEngine.playPickup('gear');
       this.pushNotice(`Baú aberto! +${goldBonus} Ouro e ${item.name}`, 'gold');
+      if (Math.random() < 0.45) {
+        phaserBridge.emitMemoryFragmentSource('chest', this.floor);
+      }
       return;
     }
 
@@ -4782,6 +5025,7 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
         this.mods.maxHpPct -= 0.3;
         this.recomputeStats(false);
         this.pushNotice('Pacto selado: +100% Dano, -30% Vida Máxima!', 'crimson');
+        phaserBridge.emitMemoryFragmentSource('altar', this.floor);
       } else if (choiceId === 'altar_crit') {
         ref.used = true;
         ref.sprite.setAlpha(0.35);
@@ -4790,11 +5034,13 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
         this.hp = Math.max(10, Math.round(this.hp * 0.65));
         this.recomputeStats(false);
         this.pushNotice('Olho do Eclipse concedido!', 'violet');
+        phaserBridge.emitMemoryFragmentSource('altar', this.floor);
       } else if (choiceId === 'altar_heal') {
         ref.used = true;
         ref.sprite.setAlpha(0.35);
         this.hp = Math.min(this.computedStats.maxHp, this.hp + Math.round(this.computedStats.maxHp * 0.65));
         this.pushNotice('Vitalidade restaurada pelo Altar.', 'emerald');
+        phaserBridge.emitMemoryFragmentSource('altar', this.floor);
       } else if (choiceId === 'merch_item_0' || choiceId === 'merch_item_1') {
         const idx = choiceId === 'merch_item_0' ? 0 : 1;
         const cost = idx === 0 ? Math.round(70 + this.floor * 18) : Math.round(140 + this.floor * 32);
@@ -4840,6 +5086,7 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
         this.portalSprite?.destroy();
         this.portalSprite = undefined;
         this.pushNotice('Fenda aberta! Derrote a emboscada de Elites!', 'violet');
+        phaserBridge.emitMemoryFragmentSource('event', this.floor);
       }
     }
 
@@ -4953,10 +5200,328 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
     this.mobileFiring = firing;
   }
 
+  private getChaosModifierLabel(idx: number): string {
+    if (idx === 0) return 'Frenesi do Caos (+25% Vel. Ataque)';
+    if (idx === 1) return 'Gravidade Distorcida (+20% Vel. Movimento)';
+    return 'Fluxo Temporal (+30% Recarga)';
+  }
+
+  private updateBiomeEnvironment(dt: number) {
+    if (!this.player) return;
+    const biome = getBiomeForFloor(this.floor);
+    this.playerInRoots = false;
+    this.playerOnIce = false;
+    this.playerAbyssRimBoost = false;
+    this.playerAbyssPullX = 0;
+    this.playerAbyssPullY = 0;
+
+    // Dimensão Caótica (biome 8): rotating dynamic room rules every 12s
+    if (biome.index === 8) {
+      this.chaosModTimer -= dt;
+      if (this.chaosModTimer <= 0) {
+        this.chaosModTimer = 12;
+        this.chaosModIndex = (this.chaosModIndex + 1) % 3;
+        this.activeChaosModLabel = this.getChaosModifierLabel(this.chaosModIndex);
+        audioEngine.playEnvHazard('chaos');
+        this.pushNotice(`Caos Mutante: ${this.activeChaosModLabel}`, 'violet');
+      }
+    }
+
+    // Reino das Sombras (biome 7): stealth shimmer on distant non-boss enemies
+    if (biome.index === 7) {
+      for (const e of this.enemies) {
+        if (e.dying || e.bossDef) continue;
+        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, e.sprite.x, e.sprite.y);
+        if (d < 190 || e.windupTimer > 0 || e.flashTimer > 0) {
+          e.sprite.setAlpha(1);
+        } else {
+          const shimmer = 0.36 + (Math.sin(this.elapsedSec * 2.6 + e.id * 1.7) * 0.5 + 0.5) * 0.44;
+          e.sprite.setAlpha(shimmer);
+        }
+      }
+    }
+
+    // Templo dos Mortos (biome 6): telegraphed soul reanimation wisps
+    for (let i = this.reanimatingWisps.length - 1; i >= 0; i--) {
+      const w = this.reanimatingWisps[i];
+      w.timer -= dt;
+      if (w.timer <= 0) {
+        this.spawnEnemy(w.archetypeId, w.x, w.y, null, 0.48);
+        const lastSpawned = this.enemies[this.enemies.length - 1];
+        if (lastSpawned) {
+          lastSpawned.isReanimated = true;
+          lastSpawned.sprite.setTint(0x5eead4);
+        }
+        this.spawnBurst(w.x, w.y, 0x2dd4bf, 12, 130);
+        audioEngine.playEnvHazard('chaos');
+        this.reanimatingWisps.splice(i, 1);
+      }
+    }
+
+    const baseEnvDmg = Math.max(6, Math.round(this.computedStats.maxHp * 0.085));
+
+    for (const z of this.envZonesRuntime) {
+      const distPlayer = Phaser.Math.Distance.Between(this.player.x, this.player.y, z.x, z.y);
+
+      if (z.kind === 'ruins_trap') {
+        if (z.state === 'idle') {
+          const enemyOnPlate = this.enemies.some(
+            (e) => !e.dying && Phaser.Math.Distance.Between(e.sprite.x, e.sprite.y, z.x, z.y) < z.radius
+          );
+          if (distPlayer < z.radius || enemyOnPlate) {
+            z.state = 'arming';
+            z.timer = z.maxTimer;
+          }
+        } else if (z.state === 'arming') {
+          z.timer -= dt;
+          if (z.timer <= 0) {
+            z.state = 'active';
+            z.timer = 0.35;
+            audioEngine.playEnvHazard('trap');
+            this.spawnBurst(z.x, z.y, 0xf59e0b, 12, 125);
+            if (distPlayer < z.radius + 6) {
+              this.damagePlayer(baseEnvDmg, null);
+            }
+            for (const e of this.enemies) {
+              if (!e.dying && Phaser.Math.Distance.Between(e.sprite.x, e.sprite.y, z.x, z.y) < z.radius + e.radius * 0.6) {
+                this.damageEnemy(e, this.computedStats.damage * 1.15, 0, false);
+              }
+            }
+          }
+        } else if (z.state === 'active') {
+          z.timer -= dt;
+          if (z.timer <= 0) {
+            z.state = 'cooldown';
+            z.timer = 3.8;
+          }
+        } else {
+          z.timer -= dt;
+          if (z.timer <= 0) z.state = 'idle';
+        }
+      } else if (z.kind === 'cavern_crystal') {
+        if (z.state === 'idle') {
+          z.timer -= dt;
+          if (z.timer <= 0 && distPlayer < z.radius * 3.1) {
+            z.state = 'arming';
+            z.timer = z.maxTimer;
+          }
+        } else if (z.state === 'arming') {
+          z.timer -= dt;
+          if (z.timer <= 0) {
+            z.state = 'cooldown';
+            z.timer = 6.2;
+            audioEngine.playEnvHazard('crystal');
+            this.spawnBurst(z.x, z.y, 0x38bdf8, 18, 175);
+            this.spawnBurst(z.x, z.y, 0xc084fc, 10, 145);
+            if (distPlayer < z.radius) {
+              this.damagePlayer(Math.round(baseEnvDmg * 1.15), null);
+            }
+            for (const e of this.enemies) {
+              if (!e.dying && Phaser.Math.Distance.Between(e.sprite.x, e.sprite.y, z.x, z.y) < z.radius + e.radius * 0.5) {
+                this.damageEnemy(e, this.computedStats.damage * 1.45, 0, false);
+              }
+            }
+          }
+        } else {
+          z.timer -= dt;
+          if (z.timer <= 0) {
+            z.state = 'idle';
+            z.timer = 3.2;
+          }
+        }
+      } else if (z.kind === 'forest_roots') {
+        if (distPlayer < z.radius) {
+          this.playerInRoots = true;
+        }
+        for (const e of this.enemies) {
+          if (!e.dying && !e.bossDef && Phaser.Math.Distance.Between(e.sprite.x, e.sprite.y, z.x, z.y) < z.radius) {
+            e.slowTimer = Math.max(e.slowTimer, 0.25);
+            e.slowFactor = Math.min(e.slowFactor, 0.65);
+          }
+        }
+      } else if (z.kind === 'fortress_lava') {
+        z.tickTimer -= dt;
+        if (z.tickTimer <= 0) {
+          z.tickTimer = 0.68;
+          if (distPlayer < z.radius - 6 && this.dashTimer <= 0) {
+            this.damagePlayer(Math.max(4, Math.round(this.computedStats.maxHp * 0.055)), null);
+            audioEngine.playEnvHazard('lava');
+          }
+          for (const e of this.enemies) {
+            if (!e.dying && !e.bossDef && Phaser.Math.Distance.Between(e.sprite.x, e.sprite.y, z.x, z.y) < z.radius) {
+              this.damageEnemy(e, Math.max(5, this.computedStats.damage * 0.28), 0, false);
+            }
+          }
+        }
+      } else if (z.kind === 'frozen_ice') {
+        if (distPlayer < z.radius) {
+          this.playerOnIce = true;
+        }
+      } else if (z.kind === 'abyss_rift') {
+        if (distPlayer < z.radius * 1.4 && distPlayer > 18) {
+          const ang = Phaser.Math.Angle.Between(this.player.x, this.player.y, z.x, z.y);
+          const pull = 58 * (1 - distPlayer / (z.radius * 1.4));
+          this.playerAbyssPullX += Math.cos(ang) * pull;
+          this.playerAbyssPullY += Math.sin(ang) * pull;
+        }
+        if (distPlayer < z.radius * 1.45 && distPlayer > z.radius * 0.35) {
+          this.playerAbyssRimBoost = true;
+        }
+      } else if (z.kind === 'celestial_sigil') {
+        if (z.state === 'idle') {
+          z.timer -= dt;
+          if (z.timer <= 0) {
+            z.state = 'arming';
+            z.timer = z.maxTimer;
+          }
+        } else if (z.state === 'arming') {
+          z.timer -= dt;
+          if (z.timer <= 0) {
+            z.state = 'active';
+            z.timer = 0.42;
+            audioEngine.playEnvHazard('celestial');
+            this.spawnBurst(z.x, z.y, 0xfef08a, 18, 170);
+            if (distPlayer < z.radius) {
+              this.damagePlayer(Math.round(baseEnvDmg * 1.1), null);
+            }
+            for (const e of this.enemies) {
+              if (!e.dying && Phaser.Math.Distance.Between(e.sprite.x, e.sprite.y, z.x, z.y) < z.radius + e.radius * 0.5) {
+                this.damageEnemy(e, this.computedStats.damage * 1.35, 0, false);
+              }
+            }
+          }
+        } else if (z.state === 'active') {
+          z.timer -= dt;
+          if (z.timer <= 0) {
+            z.state = 'cooldown';
+            z.timer = 5.4;
+          }
+        } else {
+          z.timer -= dt;
+          if (z.timer <= 0) {
+            z.state = 'idle';
+            z.timer = 1.6;
+          }
+        }
+      }
+    }
+  }
+
   // Visual Telegraphs, Beams, Pooled Particles & Damage Texts
   private drawTelegraphsAndBeams() {
     this.telegraphGraphics.clear();
     const g = this.telegraphGraphics;
+    const t = this.elapsedSec;
+
+    // Biome Environmental Mechanics Visuals (distinct per biome, clear telegraphs)
+    for (const z of this.envZonesRuntime) {
+      if (z.kind === 'ruins_trap') {
+        const s = z.radius * 1.35;
+        if (z.state === 'arming') {
+          const prog = 1 - Math.max(0, z.timer / z.maxTimer);
+          g.fillStyle(0xf59e0b, 0.16 + prog * 0.28);
+          g.lineStyle(2.4, 0xfef08a, 0.9);
+          g.fillRect(z.x - s / 2, z.y - s / 2, s, s);
+          g.strokeRect(z.x - s / 2, z.y - s / 2, s, s);
+        } else if (z.state === 'active') {
+          g.fillStyle(0xdc2626, 0.42);
+          g.lineStyle(2.5, 0xfca5a5, 0.95);
+          g.fillRect(z.x - s / 2, z.y - s / 2, s, s);
+          g.strokeRect(z.x - s / 2, z.y - s / 2, s, s);
+        } else {
+          g.fillStyle(0x27201a, 0.35);
+          g.lineStyle(1.4, 0x9c8b72, z.state === 'cooldown' ? 0.22 : 0.48);
+          g.fillRect(z.x - s / 2, z.y - s / 2, s, s);
+          g.strokeRect(z.x - s / 2, z.y - s / 2, s, s);
+        }
+      } else if (z.kind === 'cavern_crystal') {
+        if (z.state === 'arming') {
+          const prog = 1 - Math.max(0, z.timer / z.maxTimer);
+          g.fillStyle(0x38bdf8, 0.12 + prog * 0.24);
+          g.lineStyle(2.5, 0x7dd3fc, 0.92);
+          g.fillCircle(z.x, z.y, z.radius * prog);
+          g.strokeCircle(z.x, z.y, z.radius);
+        } else if (z.state === 'idle') {
+          const pulse = 0.88 + Math.sin(t * 4 + z.x) * 0.12;
+          g.fillStyle(0x8b5cf6, 0.18);
+          g.lineStyle(1.8, 0x38bdf8, 0.7);
+          g.fillCircle(z.x, z.y, 18 * pulse);
+          g.strokeCircle(z.x, z.y, 24 * pulse);
+        }
+      } else if (z.kind === 'forest_roots') {
+        g.fillStyle(0x14532d, 0.28);
+        g.lineStyle(1.8, 0x4ade80, 0.45);
+        g.fillCircle(z.x, z.y, z.radius);
+        g.strokeCircle(z.x, z.y, z.radius);
+        g.lineStyle(1.2, 0x166534, 0.55);
+        g.strokeCircle(z.x, z.y, z.radius * 0.62);
+      } else if (z.kind === 'fortress_lava') {
+        const pulse = 0.94 + Math.sin(t * 5 + z.y) * 0.06;
+        g.fillStyle(0xb91c1c, 0.42);
+        g.lineStyle(2.6, 0xf97316, 0.85);
+        g.fillCircle(z.x, z.y, z.radius);
+        g.strokeCircle(z.x, z.y, z.radius);
+        g.fillStyle(0xfacc15, 0.26);
+        g.fillCircle(z.x, z.y, z.radius * 0.52 * pulse);
+      } else if (z.kind === 'frozen_ice') {
+        g.fillStyle(0x7dd3fc, 0.18);
+        g.lineStyle(1.8, 0xe0f2fe, 0.52);
+        g.fillCircle(z.x, z.y, z.radius);
+        g.strokeCircle(z.x, z.y, z.radius);
+        g.lineStyle(1, 0xbae6fd, 0.38);
+        g.lineBetween(z.x - z.radius * 0.5, z.y - z.radius * 0.2, z.x + z.radius * 0.45, z.y - z.radius * 0.45);
+        g.lineBetween(z.x - z.radius * 0.35, z.y + z.radius * 0.35, z.x + z.radius * 0.5, z.y + z.radius * 0.1);
+      } else if (z.kind === 'abyss_rift') {
+        const pulse = 0.92 + Math.sin(t * 4.5) * 0.08;
+        g.fillStyle(0x1e0936, 0.44);
+        g.lineStyle(2.4, 0xc084fc, 0.82);
+        g.fillCircle(z.x, z.y, z.radius * 0.45);
+        g.strokeCircle(z.x, z.y, z.radius * pulse);
+        g.lineStyle(1.2, 0x38bdf8, 0.46);
+        g.strokeCircle(z.x, z.y, z.radius * 1.35);
+      } else if (z.kind === 'temple_gravestone') {
+        g.fillStyle(0x134e4a, 0.22);
+        g.lineStyle(1.6, 0x5eead4, 0.48);
+        g.fillCircle(z.x, z.y, z.radius * 0.65);
+        g.strokeCircle(z.x, z.y, z.radius);
+      } else if (z.kind === 'shadow_veil') {
+        g.fillStyle(0x090612, 0.45);
+        g.lineStyle(1.4, 0x6366f1, 0.35);
+        g.fillCircle(z.x, z.y, z.radius);
+        g.strokeCircle(z.x, z.y, z.radius);
+      } else if (z.kind === 'chaos_nexus') {
+        const cCol = this.chaosModIndex === 0 ? 0xf43f5e : this.chaosModIndex === 1 ? 0x22d3ee : 0xc084fc;
+        g.fillStyle(cCol, 0.14);
+        g.lineStyle(2.2, cCol, 0.72);
+        g.fillCircle(z.x, z.y, z.radius * 0.55);
+        g.strokeCircle(z.x, z.y, z.radius);
+      } else if (z.kind === 'celestial_sigil') {
+        if (z.state === 'arming') {
+          const prog = 1 - Math.max(0, z.timer / z.maxTimer);
+          g.fillStyle(0xfef08a, 0.14 + prog * 0.26);
+          g.lineStyle(2.6, 0xfacc15, 0.94);
+          g.fillCircle(z.x, z.y, z.radius * prog);
+          g.strokeCircle(z.x, z.y, z.radius);
+        } else if (z.state === 'active') {
+          g.fillStyle(0xfef9c3, 0.55);
+          g.lineStyle(3.2, 0xfacc15, 1);
+          g.fillCircle(z.x, z.y, z.radius);
+          g.strokeCircle(z.x, z.y, z.radius);
+        } else {
+          g.lineStyle(1.4, 0xfde047, 0.34);
+          g.strokeCircle(z.x, z.y, z.radius * 0.78);
+        }
+      }
+    }
+
+    // Templo dos Mortos: telegraphed soul reanimation circles
+    for (const w of this.reanimatingWisps) {
+      const prog = 1 - Math.max(0, w.timer / w.maxTimer);
+      g.fillStyle(0x2dd4bf, 0.14 + prog * 0.22);
+      g.lineStyle(2.2, 0x5eead4, 0.9);
+      g.fillCircle(w.x, w.y, 26 * prog);
+      g.strokeCircle(w.x, w.y, 26);
+    }
 
     // Reinforcement wave summoning circles (clear 0.8s warning before ambush enemies appear)
     for (const sp of this.pendingWaveSpawns) {
@@ -5311,6 +5876,7 @@ export class DungeonScene extends Phaser.Scene implements DungeonController {
       floor: this.floor,
       biomeName: biome.name,
       floorModifier: this.floorModifierText,
+      chaosModifier: this.activeChaosModLabel,
       enemiesRemaining: totalRemaining,
       enemiesTotal: Math.max(totalRemaining, this.enemiesTotalOnFloor),
       waveIndex: Math.min(this.currentWaveIndex + 1, Math.max(1, this.floorWavePlan.waves.length)),

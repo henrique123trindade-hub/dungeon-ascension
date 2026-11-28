@@ -14,8 +14,10 @@ export type SecretUnlockTheme = 'gold' | 'tricolor' | 'colorado';
 
 export interface SecretCodeDef {
   id: string;
-  /** Stored lowercase trimmed key for case-insensitive matching */
+  /** Populated dynamically upon verified redemption; never hardcoded in client bundle */
   code: string;
+  /** Deterministic salted digest used for offline/test matching without storing plaintext codes */
+  codeDigest: string;
   title: string;
   subtitle: string;
   description: string;
@@ -24,13 +26,39 @@ export interface SecretCodeDef {
 }
 
 /**
- * Centralized registry of redeemable secret codes.
- * Add new codes and reward payloads here to expand the system cleanly.
+ * Computes a deterministic 64-bit salted digest (two independent 32-bit FNV-1a lanes)
+ * for case-insensitive secret code matching without exposing plaintext codes in public frontend bundles.
+ */
+export function computeSecretCodeDigest(normalizedCode: string): string {
+  const saltedA = `da_sec_v2::${normalizedCode}::vault`;
+  const saltedB = `ascension::${normalizedCode.split('').reverse().join('')}::key`;
+  let h1 = 0x811c9dc5;
+  for (let i = 0; i < saltedA.length; i++) {
+    h1 ^= saltedA.charCodeAt(i);
+    h1 = Math.imul(h1, 0x01000193) >>> 0;
+  }
+  let h2 = 0x9e3779b1;
+  for (let i = 0; i < saltedB.length; i++) {
+    h2 ^= saltedB.charCodeAt(i);
+    h2 = Math.imul(h2, 0x85ebca6b) >>> 0;
+  }
+  return `${h1.toString(16).padStart(8, '0')}${h2.toString(16).padStart(8, '0')}`;
+}
+
+export function normalizeSecretCode(raw: string): string {
+  return raw.trim().toLowerCase();
+}
+
+/**
+ * Centralized metadata registry of redeemable secret rewards.
+ * Plaintext secret code strings are validated on the server (`/api/codes/redeem`)
+ * and never embedded in client source code.
  */
 export const SECRET_CODES: ReadonlyArray<SecretCodeDef> = [
   {
     id: 'secret_slatt_monkeyslatt',
-    code: 'monkeyslatt',
+    code: '',
+    codeDigest: '8e8855c2f77e01b4',
     title: 'Slatt',
     subtitle: 'Classe Secreta Desbloqueada',
     description:
@@ -43,7 +71,8 @@ export const SECRET_CODES: ReadonlyArray<SecretCodeDef> = [
   },
   {
     id: 'secret_farid_1903',
-    code: 'farid1903',
+    code: '',
+    codeDigest: '8c7f64f4fd8e964a',
     title: 'Farid',
     subtitle: 'Classe Secreta Tricolor Desbloqueada',
     description:
@@ -56,7 +85,8 @@ export const SECRET_CODES: ReadonlyArray<SecretCodeDef> = [
   },
   {
     id: 'secret_baldasso_1909',
-    code: 'baldasso1909',
+    code: '',
+    codeDigest: '9ce63db1460d82d1',
     title: 'Baldasso',
     subtitle: 'Classe Secreta Colorada Desbloqueada',
     description:
@@ -69,12 +99,24 @@ export const SECRET_CODES: ReadonlyArray<SecretCodeDef> = [
   },
 ];
 
-export function normalizeSecretCode(raw: string): string {
-  return raw.trim().toLowerCase();
+export function findSecretCodeDefById(id: string): SecretCodeDef | undefined {
+  return SECRET_CODES.find((entry) => entry.id === id);
 }
 
 export function findSecretCodeDef(raw: string): SecretCodeDef | undefined {
   const normalized = normalizeSecretCode(raw);
   if (!normalized) return undefined;
-  return SECRET_CODES.find((entry) => entry.code === normalized);
+  const byId = SECRET_CODES.find((entry) => entry.id === normalized);
+  if (byId) return byId;
+  const digest = computeSecretCodeDigest(normalized);
+  const matched = SECRET_CODES.find((entry) => entry.codeDigest === digest);
+  if (!matched) return undefined;
+  return { ...matched, code: normalized };
+}
+
+export function matchesSecretCodeEntry(storedKey: string, def: SecretCodeDef): boolean {
+  const normalized = normalizeSecretCode(storedKey);
+  if (!normalized) return false;
+  if (normalized === def.id) return true;
+  return computeSecretCodeDigest(normalized) === def.codeDigest;
 }

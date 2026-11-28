@@ -3,6 +3,9 @@ import { CLASSES, getClassEvolution } from '../data/classes';
 import { getInfiniteModifierForFloor } from '../data/biomes';
 import { getSkillEvolutionTier, SKILL_LIST, SKILLS, SYNERGIES } from '../data/skills';
 import type {
+  BiomeDecorProp,
+  BiomeEnvZone,
+  BiomeEnvZoneKind,
   ClassId,
   ComputedPlayerStats,
   EquipmentItem,
@@ -1106,16 +1109,33 @@ export interface DungeonLayout {
   roomWidth: number;
   roomHeight: number;
   tileSize: number;
+  biomeIndex: number;
   playerSpawn: { x: number; y: number };
   portalPos: { x: number; y: number };
   pillars: Array<{ x: number; y: number; w: number; h: number }>;
   braziers: Array<{ x: number; y: number }>;
   enemySpawns: Array<{ x: number; y: number }>;
+  decorProps: BiomeDecorProp[];
+  envZones: BiomeEnvZone[];
 }
 
+const BIOME_ZONE_KIND: BiomeEnvZoneKind[] = [
+  'ruins_trap',
+  'cavern_crystal',
+  'forest_roots',
+  'fortress_lava',
+  'frozen_ice',
+  'abyss_rift',
+  'temple_gravestone',
+  'shadow_veil',
+  'chaos_nexus',
+  'celestial_sigil',
+];
+
 /**
- * Generates a balanced procedural dungeon arena where player always spawns
- * in a clear open lane (>= 2 tiles wide) far from immediate enemy hits.
+ * Generates a balanced procedural dungeon arena tailored to each biome where
+ * the player always spawns in a clear open lane (>= 2 tiles wide) far from
+ * immediate enemy hits and hazards.
  */
 export function generateDungeonLayout(
   floor: number,
@@ -1124,6 +1144,7 @@ export function generateDungeonLayout(
   rng: () => number = Math.random
 ): DungeonLayout {
   const tileSize = 64;
+  const biomeIndex = Math.floor((Math.max(1, floor) - 1) / 10) % 10;
   const roomWidth = isBoss ? 1664 : 1536; // 26 or 24 tiles
   const roomHeight = isBoss ? 1152 : 1088; // 18 or 17 tiles
   const margin = tileSize * 2;
@@ -1132,43 +1153,113 @@ export function generateDungeonLayout(
   const portalPos = { x: Math.round(roomWidth / 2), y: Math.round(tileSize * 2.4) };
 
   const pillars: Array<{ x: number; y: number; w: number; h: number }> = [];
-  const pattern = isBoss ? 0 : (floor + Math.floor(rng() * 3)) % 4;
 
   const addPillar = (cx: number, cy: number) => {
     const w = tileSize;
     const h = tileSize;
-    // Never overlap player spawn or portal (minimum 160px clearance)
-    const dPlayer = Math.hypot(cx - playerSpawn.x, cy - playerSpawn.y);
-    const dPortal = Math.hypot(cx - portalPos.x, cy - portalPos.y);
-    if (dPlayer < 175 || dPortal < 175) return;
-    pillars.push({ x: cx, y: cy, w, h });
+    const rx = Math.round(cx);
+    const ry = Math.round(cy);
+    // Never overlap player spawn or portal (minimum 175px clearance)
+    const dPlayer = Math.hypot(rx - playerSpawn.x, ry - playerSpawn.y);
+    const dPortal = Math.hypot(rx - portalPos.x, ry - portalPos.y);
+    if (dPlayer < 180 || dPortal < 180) return;
+    // Keep pillars spaced apart so player/enemies never get trapped
+    if (pillars.some((p) => Math.hypot(rx - p.x, ry - p.y) < 132)) return;
+    pillars.push({ x: rx, y: ry, w, h });
   };
 
-  if (pattern === 0) {
-    // Classic 4 symmetrical gothic columns
-    addPillar(roomWidth * 0.28, roomHeight * 0.34);
-    addPillar(roomWidth * 0.72, roomHeight * 0.34);
-    addPillar(roomWidth * 0.28, roomHeight * 0.66);
-    addPillar(roomWidth * 0.72, roomHeight * 0.66);
-  } else if (pattern === 1) {
-    // Twin colonnade hall
-    addPillar(roomWidth * 0.3, roomHeight * 0.28);
-    addPillar(roomWidth * 0.7, roomHeight * 0.28);
-    addPillar(roomWidth * 0.3, roomHeight * 0.52);
-    addPillar(roomWidth * 0.7, roomHeight * 0.52);
-    addPillar(roomWidth * 0.3, roomHeight * 0.74);
-    addPillar(roomWidth * 0.7, roomHeight * 0.74);
-  } else if (pattern === 2) {
-    // Central sanctuary pillars + side cover
-    addPillar(roomWidth * 0.5, roomHeight * 0.48);
-    addPillar(roomWidth * 0.22, roomHeight * 0.48);
-    addPillar(roomWidth * 0.78, roomHeight * 0.48);
+  // Biome-driven architectural pillar patterns (distinct silhouette per region)
+  const variant = isBoss ? 0 : (floor + Math.floor(rng() * 2)) % 2;
+  if (isBoss) {
+    // Open heroic boss arena with 4 flanking thematic columns
+    addPillar(roomWidth * 0.24, roomHeight * 0.34);
+    addPillar(roomWidth * 0.76, roomHeight * 0.34);
+    addPillar(roomWidth * 0.24, roomHeight * 0.68);
+    addPillar(roomWidth * 0.76, roomHeight * 0.68);
   } else {
-    // Diamond arena
-    addPillar(roomWidth * 0.36, roomHeight * 0.38);
-    addPillar(roomWidth * 0.64, roomHeight * 0.38);
-    addPillar(roomWidth * 0.36, roomHeight * 0.62);
-    addPillar(roomWidth * 0.64, roomHeight * 0.62);
+    switch (biomeIndex) {
+      case 0: // Ruínas Abandonadas: broken nave colonnade
+        if (variant === 0) {
+          addPillar(roomWidth * 0.28, roomHeight * 0.34);
+          addPillar(roomWidth * 0.72, roomHeight * 0.34);
+          addPillar(roomWidth * 0.28, roomHeight * 0.66);
+          addPillar(roomWidth * 0.72, roomHeight * 0.66);
+        } else {
+          addPillar(roomWidth * 0.3, roomHeight * 0.29);
+          addPillar(roomWidth * 0.7, roomHeight * 0.29);
+          addPillar(roomWidth * 0.3, roomHeight * 0.54);
+          addPillar(roomWidth * 0.7, roomHeight * 0.54);
+          addPillar(roomWidth * 0.3, roomHeight * 0.74);
+        }
+        break;
+      case 1: // Cavernas Corrompidas: organic asymmetric crystal clusters
+        addPillar(roomWidth * 0.24, roomHeight * 0.32);
+        addPillar(roomWidth * 0.68, roomHeight * 0.28);
+        addPillar(roomWidth * 0.5, roomHeight * 0.5);
+        addPillar(roomWidth * 0.29, roomHeight * 0.68);
+        addPillar(roomWidth * 0.77, roomHeight * 0.62);
+        break;
+      case 2: // Floresta Sombria: twisted grove clearing with flanking trees
+        addPillar(roomWidth * 0.2, roomHeight * 0.3);
+        addPillar(roomWidth * 0.8, roomHeight * 0.3);
+        addPillar(roomWidth * 0.36, roomHeight * 0.44);
+        addPillar(roomWidth * 0.64, roomHeight * 0.44);
+        addPillar(roomWidth * 0.22, roomHeight * 0.7);
+        addPillar(roomWidth * 0.78, roomHeight * 0.7);
+        break;
+      case 3: // Fortaleza Infernal: symmetrical iron bastion courtyard (matches lava fortress ref)
+        addPillar(roomWidth * 0.33, roomHeight * 0.33);
+        addPillar(roomWidth * 0.67, roomHeight * 0.33);
+        addPillar(roomWidth * 0.33, roomHeight * 0.67);
+        addPillar(roomWidth * 0.67, roomHeight * 0.67);
+        addPillar(roomWidth * 0.18, roomHeight * 0.5);
+        addPillar(roomWidth * 0.82, roomHeight * 0.5);
+        break;
+      case 4: // Reino Congelado: glacial bastion hall with wide central ice lane
+        addPillar(roomWidth * 0.25, roomHeight * 0.3);
+        addPillar(roomWidth * 0.75, roomHeight * 0.3);
+        addPillar(roomWidth * 0.25, roomHeight * 0.55);
+        addPillar(roomWidth * 0.75, roomHeight * 0.55);
+        break;
+      case 5: // Abismo: outer ring of levitating void obelisks around central rift
+        addPillar(roomWidth * 0.34, roomHeight * 0.3);
+        addPillar(roomWidth * 0.66, roomHeight * 0.3);
+        addPillar(roomWidth * 0.2, roomHeight * 0.52);
+        addPillar(roomWidth * 0.8, roomHeight * 0.52);
+        addPillar(roomWidth * 0.34, roomHeight * 0.72);
+        addPillar(roomWidth * 0.66, roomHeight * 0.72);
+        break;
+      case 6: // Templo dos Mortos: catacomb sarcophagus rows
+        addPillar(roomWidth * 0.32, roomHeight * 0.32);
+        addPillar(roomWidth * 0.68, roomHeight * 0.32);
+        addPillar(roomWidth * 0.32, roomHeight * 0.54);
+        addPillar(roomWidth * 0.68, roomHeight * 0.54);
+        addPillar(roomWidth * 0.32, roomHeight * 0.74);
+        addPillar(roomWidth * 0.68, roomHeight * 0.74);
+        break;
+      case 7: // Reino das Sombras: diamond eclipse sanctuaries
+        addPillar(roomWidth * 0.5, roomHeight * 0.44);
+        addPillar(roomWidth * 0.25, roomHeight * 0.5);
+        addPillar(roomWidth * 0.75, roomHeight * 0.5);
+        addPillar(roomWidth * 0.36, roomHeight * 0.7);
+        addPillar(roomWidth * 0.64, roomHeight * 0.7);
+        break;
+      case 8: // Dimensão Caótica: fractured diagonal shards
+        addPillar(roomWidth * 0.24, roomHeight * 0.34);
+        addPillar(roomWidth * 0.58, roomHeight * 0.32);
+        addPillar(roomWidth * 0.42, roomHeight * 0.56);
+        addPillar(roomWidth * 0.76, roomHeight * 0.64);
+        addPillar(roomWidth * 0.22, roomHeight * 0.72);
+        break;
+      default: // Domínio Celestial: grand royal temple peristyle
+        addPillar(roomWidth * 0.24, roomHeight * 0.3);
+        addPillar(roomWidth * 0.76, roomHeight * 0.3);
+        addPillar(roomWidth * 0.24, roomHeight * 0.52);
+        addPillar(roomWidth * 0.76, roomHeight * 0.52);
+        addPillar(roomWidth * 0.24, roomHeight * 0.72);
+        addPillar(roomWidth * 0.76, roomHeight * 0.72);
+        break;
+    }
   }
 
   const braziers: Array<{ x: number; y: number }> = [
@@ -1179,6 +1270,72 @@ export function generateDungeonLayout(
     { x: roomWidth * 0.5 - 150, y: margin },
     { x: roomWidth * 0.5 + 150, y: margin },
   ];
+
+  // Biome-specific environmental zones (fair, telegraphed, never overlapping spawn/portal/pillars)
+  const envZones: BiomeEnvZone[] = [];
+  const zoneKind = BIOME_ZONE_KIND[biomeIndex] ?? 'ruins_trap';
+  const targetZoneCount = isBoss
+    ? biomeIndex === 3 || biomeIndex === 4 || biomeIndex === 5 || biomeIndex === 9
+      ? 2
+      : 1
+    : biomeIndex === 8
+      ? 1
+      : biomeIndex === 4
+        ? 3
+        : 4;
+
+  const zoneRadiusByBiome = [46, 44, 68, 56, 86, 68, 48, 72, 64, 58];
+  const baseRadius = zoneRadiusByBiome[biomeIndex] ?? 52;
+
+  if (biomeIndex === 8) {
+    // Chaos Dimension central rift nexus
+    envZones.push({
+      id: `env_${floor}_0`,
+      kind: 'chaos_nexus',
+      x: Math.round(roomWidth * 0.5),
+      y: Math.round(roomHeight * 0.48),
+      radius: 74,
+    });
+  } else {
+    let zGuard = 0;
+    while (envZones.length < targetZoneCount && zGuard < 160) {
+      zGuard++;
+      const zx = Math.round(margin + 96 + rng() * (roomWidth - (margin + 96) * 2));
+      const zy = Math.round(margin + 96 + rng() * (roomHeight - (margin + 96) * 2));
+      if (Math.hypot(zx - playerSpawn.x, zy - playerSpawn.y) < 220) continue;
+      if (Math.hypot(zx - portalPos.x, zy - portalPos.y) < 190) continue;
+      if (pillars.some((p) => Math.hypot(zx - p.x, zy - p.y) < baseRadius + 56)) continue;
+      if (envZones.some((z) => Math.hypot(zx - z.x, zy - z.y) < baseRadius * 2.4)) continue;
+      envZones.push({
+        id: `env_${floor}_${envZones.length}`,
+        kind: zoneKind,
+        x: zx,
+        y: zy,
+        radius: baseRadius,
+      });
+    }
+  }
+
+  // Non-blocking atmospheric biome decor props (candles, crystal shards, lanterns, grates, snowdrifts, sigils)
+  const decorProps: BiomeDecorProp[] = [];
+  const decorCount = isBoss ? 8 : 11;
+  let dGuard = 0;
+  while (decorProps.length < decorCount && dGuard < 200) {
+    dGuard++;
+    const dx = Math.round(margin + 30 + rng() * (roomWidth - (margin + 30) * 2));
+    const dy = Math.round(margin + 30 + rng() * (roomHeight - (margin + 30) * 2));
+    if (Math.hypot(dx - playerSpawn.x, dy - playerSpawn.y) < 130) continue;
+    if (Math.hypot(dx - portalPos.x, dy - portalPos.y) < 135) continue;
+    if (pillars.some((p) => Math.hypot(dx - p.x, dy - p.y) < 76)) continue;
+    if (decorProps.some((d) => Math.hypot(dx - d.x, dy - d.y) < 120)) continue;
+    decorProps.push({
+      x: dx,
+      y: dy,
+      variant: decorProps.length % 2,
+      scale: 0.85 + rng() * 0.3,
+      flipX: rng() > 0.5,
+    });
+  }
 
   const enemySpawns: Array<{ x: number; y: number }> = [];
   if (isBoss) {
@@ -1203,10 +1360,13 @@ export function generateDungeonLayout(
     roomWidth,
     roomHeight,
     tileSize,
+    biomeIndex,
     playerSpawn,
     portalPos,
     pillars,
     braziers,
     enemySpawns,
+    decorProps,
+    envZones,
   };
 }

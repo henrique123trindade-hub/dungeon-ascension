@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { CLASSES } from '../game/data/classes';
 import { phaserBridge } from '../game/phaser/PhaserBridge';
-import type { RunHUDSnapshot, SettingsData } from '../game/types';
+import type { NarrativeOverlayPayload, RunHUDSnapshot, SettingsData } from '../game/types';
 import { ClassIcon, CrystalIcon, GoldCoinIcon, SkillIcon } from './Icons';
 
 interface GameHUDProps {
   hud: RunHUDSnapshot;
   settings: SettingsData;
+  narrativeOverlay?: NarrativeOverlayPayload | null;
   onOpenCharacterTab: (tab: 'inventory' | 'skills' | 'stats') => void;
   onToggleMute: () => void;
   onOpenPause: () => void;
@@ -15,6 +16,7 @@ interface GameHUDProps {
 export function GameHUD({
   hud,
   settings,
+  narrativeOverlay = null,
   onOpenCharacterTab,
   onToggleMute,
   onOpenPause,
@@ -368,6 +370,9 @@ export function GameHUD({
             {hud.floorModifier && (
               <div className="text-[11px] text-[#fca5a5] mt-1 font-medium">{hud.floorModifier}</div>
             )}
+            {hud.chaosModifier && (
+              <div className="text-[11px] text-[#22d3ee] mt-1 font-medium">{hud.chaosModifier}</div>
+            )}
           </div>
 
           {/* Real-geometry Framed Corner Minimap */}
@@ -423,68 +428,142 @@ export function GameHUD({
           </div>
         </div>
 
-        {/* Utility square buttons */}
+        {/* Utility square buttons dock (forged-iron dark-fantasy bar below minimap) */}
         <div
           data-hud-surface="true"
+          data-testid="hud-utility-bar"
           onPointerDown={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
           onTouchStart={(e) => e.stopPropagation()}
-          className="relative z-30 pointer-events-auto cursor-default flex items-center gap-2.5 pt-2.5 px-1 pb-1 -mx-1 -mb-1"
+          className="relative z-30 mt-2.5 sm:mt-3 pointer-events-auto cursor-default hud-iron-frame p-2 flex items-center gap-2.5 sm:gap-3"
         >
+          <CornerNotches />
           <UtilityBtn
             label="Inventário (I)"
             tooltipTitle="Inventário"
+            tooltipDesc="Gerencie equipamentos, relíquias e itens coletados na incursão."
+            tooltipMobileAlign="left"
             hotkey="I"
             badge={hud.inventory.length > 0 ? hud.inventory.length : undefined}
             onClick={() => onOpenCharacterTab('inventory')}
           >
-            <svg viewBox="0 0 24 24" className="w-[21px] h-[21px]" fill="none" stroke="currentColor" strokeWidth="1.85">
+            <svg viewBox="0 0 24 24" className="w-6 h-6 sm:w-[27px] sm:h-[27px]" fill="none" stroke="currentColor" strokeWidth="1.85">
               <path d="M5 8h14l-1 12H6L5 8zm4 0V6a3 3 0 016 0v2" />
             </svg>
           </UtilityBtn>
           <UtilityBtn
             label="Habilidades e Sinergias (K)"
             tooltipTitle="Habilidades e Sinergias"
+            tooltipDesc="Visualize níveis de habilidades, evoluções e sinergias ativas."
             hotkey="K"
             onClick={() => onOpenCharacterTab('skills')}
           >
-            <svg viewBox="0 0 24 24" className="w-[21px] h-[21px]" fill="none" stroke="currentColor" strokeWidth="1.85">
+            <svg viewBox="0 0 24 24" className="w-6 h-6 sm:w-[27px] sm:h-[27px]" fill="none" stroke="currentColor" strokeWidth="1.85">
               <path d="M13 2L4.5 13.5H11L10 22l9.5-11.5H13V2z" />
             </svg>
           </UtilityBtn>
           <UtilityBtn
             label="Atributos (C)"
             tooltipTitle="Atributos"
+            tooltipDesc="Consulte atributos de combate, resistências e bônus do herói."
             hotkey="C"
             onClick={() => onOpenCharacterTab('stats')}
           >
-            <svg viewBox="0 0 24 24" className="w-[21px] h-[21px]" fill="none" stroke="currentColor" strokeWidth="1.85">
+            <svg viewBox="0 0 24 24" className="w-6 h-6 sm:w-[27px] sm:h-[27px]" fill="none" stroke="currentColor" strokeWidth="1.85">
               <path d="M12 12a4 4 0 100-8 4 4 0 000 8zm-7 8a7 7 0 0114 0" />
             </svg>
           </UtilityBtn>
           <UtilityBtn
             label={settings.muted ? 'Ativar som (M)' : 'Silenciar som (M)'}
             tooltipTitle={settings.muted ? 'Ativar som' : 'Silenciar som'}
+            tooltipDesc={
+              settings.muted
+                ? 'Reativa os efeitos sonoros e a trilha da masmorra.'
+                : 'Silencia os efeitos sonoros e a trilha da masmorra.'
+            }
             hotkey="M"
             onClick={onToggleMute}
           >
             {settings.muted ? (
-              <svg viewBox="0 0 24 24" className="w-[21px] h-[21px]" fill="none" stroke="currentColor" strokeWidth="1.85">
+              <svg viewBox="0 0 24 24" className="w-6 h-6 sm:w-[27px] sm:h-[27px]" fill="none" stroke="currentColor" strokeWidth="1.85">
                 <path d="M11 5L6 9H3v6h3l5 4V5zm5 4l5 6m0-6l-5 6" />
               </svg>
             ) : (
-              <svg viewBox="0 0 24 24" className="w-[21px] h-[21px]" fill="none" stroke="currentColor" strokeWidth="1.85">
+              <svg viewBox="0 0 24 24" className="w-6 h-6 sm:w-[27px] sm:h-[27px]" fill="none" stroke="currentColor" strokeWidth="1.85">
                 <path d="M11 5L6 9H3v6h3l5 4V5zm4.5 3.5a5 5 0 010 7m3-9.5a8.5 8.5 0 010 12" />
               </svg>
             )}
           </UtilityBtn>
-          <UtilityBtn label="Pausar (Esc)" tooltipTitle="Pausar jogo" hotkey="Esc" onClick={onOpenPause}>
-            <svg viewBox="0 0 24 24" className="w-[21px] h-[21px]" fill="none" stroke="currentColor" strokeWidth="1.85">
+          <UtilityBtn
+            label="Pausar (Esc)"
+            tooltipTitle="Pausar jogo"
+            tooltipDesc="Interrompe o combate e abre o menu de pausa e opções."
+            hotkey="Esc"
+            onClick={onOpenPause}
+          >
+            <svg viewBox="0 0 24 24" className="w-6 h-6 sm:w-[27px] sm:h-[27px]" fill="none" stroke="currentColor" strokeWidth="1.85">
               <path d="M8 5h3v14H8zm5 0h3v14h-3z" />
             </svg>
           </UtilityBtn>
         </div>
       </div>
+
+      {/* BOTTOM-LEFT: Discreet Non-Blocking Narrative Ribbon (Boss Dialogue / Tower Whisper / Memory Fragment) */}
+      {narrativeOverlay && (
+        <div
+          key={narrativeOverlay.id}
+          data-testid="hud-narrative-overlay"
+          className="fixed bottom-24 sm:bottom-5 left-4 sm:left-5 z-30 pointer-events-none w-[min(90vw,390px)] px-4 py-2.5 bg-[#0e0c14]/94 border border-white/12 border-l-2 shadow-[0_10px_28px_rgba(0,0,0,0.75)] animate-modal-enter"
+          style={{
+            borderLeftColor:
+              narrativeOverlay.accentColor ??
+              (narrativeOverlay.kind === 'tower_whisper'
+                ? '#a855f7'
+                : narrativeOverlay.kind === 'fragment'
+                  ? '#d4a64a'
+                  : '#ef4444'),
+          }}
+        >
+          <div className="flex items-center justify-between gap-3">
+            <span
+              className="font-display text-[10px] font-bold uppercase tracking-[0.2em]"
+              style={{
+                color:
+                  narrativeOverlay.accentColor ??
+                  (narrativeOverlay.kind === 'tower_whisper'
+                    ? '#c084fc'
+                    : narrativeOverlay.kind === 'fragment'
+                      ? '#f8e3a8'
+                      : '#fca5a5'),
+              }}
+            >
+              {narrativeOverlay.kind === 'tower_whisper'
+                ? narrativeOverlay.speaker.toLowerCase().includes('torre')
+                  ? narrativeOverlay.speaker
+                  : `Sussurro da Torre · ${narrativeOverlay.speaker}`
+                : narrativeOverlay.kind === 'fragment'
+                  ? `Fragmento de Memória · ${narrativeOverlay.speaker}`
+                  : narrativeOverlay.speaker}
+            </span>
+            {narrativeOverlay.kind === 'fragment' && (
+              <span className="font-mono-num text-[9px] uppercase tracking-wider text-[#9c9487] shrink-0">
+                Arquivo
+              </span>
+            )}
+          </div>
+          <p
+            className={`mt-1 text-xs sm:text-[13px] leading-snug ${
+              narrativeOverlay.kind === 'fragment'
+                ? 'text-[#e8e3d9]'
+                : 'italic text-[#f4efe6]'
+            }`}
+          >
+            {narrativeOverlay.kind === 'fragment'
+              ? narrativeOverlay.text
+              : `“${narrativeOverlay.text}”`}
+          </p>
+        </div>
+      )}
 
       {/* BOTTOM-CENTER: Interaction Prompt + Passive Strip + Forged-Iron Skill Hotbar */}
       <div className="fixed bottom-4 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
@@ -663,6 +742,8 @@ function CornerNotches({ gold = false }: { gold?: boolean }) {
 function UtilityBtn({
   label,
   tooltipTitle,
+  tooltipDesc,
+  tooltipMobileAlign = 'right',
   hotkey,
   badge,
   onClick,
@@ -670,12 +751,16 @@ function UtilityBtn({
 }: {
   label: string;
   tooltipTitle: string;
+  tooltipDesc: string;
+  tooltipMobileAlign?: 'right' | 'left';
   hotkey: string;
   badge?: number;
   onClick: () => void;
   children: React.ReactNode;
 }) {
   const displayKey = hotkey === 'Esc' ? 'ESC' : hotkey;
+  const alignClass =
+    tooltipMobileAlign === 'left' ? 'left-0 sm:left-auto sm:right-0' : 'right-0';
 
   return (
     <div className="group relative">
@@ -692,30 +777,38 @@ function UtilityBtn({
           e.currentTarget.blur();
           onClick();
         }}
-        className="relative w-12 h-12 bg-[#121018]/94 border border-[#d4a64a]/45 hover:border-[#f8e3a8] hover:bg-[#211c2d] hover:-translate-y-0.5 active:translate-y-0 text-[#e8e3d9] hover:text-[#faf5eb] shadow-[0_6px_14px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(248,227,168,0.12)] hover:shadow-[0_8px_18px_rgba(0,0,0,0.75),inset_0_0_12px_rgba(212,166,74,0.16)] flex items-center justify-center transition-all duration-150 cursor-pointer pointer-events-auto"
+        className="relative w-14 h-14 sm:w-[62px] sm:h-[62px] bg-[#161320]/96 border border-[#d4a64a]/45 hover:border-[#f8e3a8] hover:bg-[#231d31] hover:-translate-y-0.5 active:translate-y-0 text-[#e8e3d9] hover:text-[#faf5eb] shadow-[0_6px_14px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(248,227,168,0.14),inset_0_-2px_0_rgba(0,0,0,0.55)] hover:shadow-[0_8px_18px_rgba(0,0,0,0.78),inset_0_0_14px_rgba(212,166,74,0.2)] flex items-center justify-center transition-all duration-150 cursor-pointer pointer-events-auto"
       >
-        <span className="pointer-events-none flex items-center justify-center -translate-y-1 transition-transform duration-150 group-hover:scale-105">
+        <span className="pointer-events-none flex items-center justify-center -translate-y-1.5 transition-transform duration-150 group-hover:scale-105">
           {children}
         </span>
-        <span className="pointer-events-none absolute bottom-1 right-1 px-1 py-[1px] bg-[#09080c]/92 border border-[#d4a64a]/35 group-hover:border-[#f8e3a8]/70 font-mono-num text-[10px] font-bold text-[#e7d8b5] group-hover:text-[#faf5eb] leading-none tracking-tight transition-colors">
+        <span className="pointer-events-none absolute bottom-1.5 right-1.5 px-1.5 py-[2px] bg-[#09080c]/94 border border-[#d4a64a]/40 group-hover:border-[#f8e3a8]/75 font-mono-num text-[11px] font-bold text-[#e7d8b5] group-hover:text-[#faf5eb] leading-none tracking-tight transition-colors">
           {displayKey}
         </span>
         {badge !== undefined && (
-          <span className="pointer-events-none absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 bg-[#b83232] border border-[#f8e3a8]/55 text-[10px] font-mono-num font-bold text-white flex items-center justify-center shadow-sm">
+          <span className="pointer-events-none absolute -top-1.5 -right-1.5 min-w-[20px] h-[20px] px-1 bg-[#b83232] border border-[#f8e3a8]/65 text-[11px] font-mono-num font-bold text-white flex items-center justify-center shadow-sm">
             {badge}
           </span>
         )}
       </button>
 
-      {/* Dark-fantasy hover tooltip (right-aligned so it never clips off the right viewport edge) */}
+      {/* Dark-fantasy informative hover tooltip */}
       <div
         role="tooltip"
-        className="pointer-events-none absolute right-0 top-full mt-2 z-40 whitespace-nowrap opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-150 hud-iron-frame px-2.5 py-1.5 flex items-center gap-2"
+        className={`pointer-events-none absolute ${alignClass} top-full mt-3 z-40 w-[224px] opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 group-focus-within:opacity-100 group-focus-within:translate-y-0 transition-all duration-150 hud-iron-frame px-3 py-2.5 text-left`}
       >
-        <span className="text-xs font-medium text-[#f4efe6] tracking-wide">{tooltipTitle}</span>
-        <span className="font-mono-num text-[10px] font-bold text-[#f8e3a8] bg-[#0b0a0f] border border-[#d4a64a]/45 px-1.5 py-0.5 leading-none">
-          {displayKey}
-        </span>
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-display text-xs font-bold text-[#f8e3a8] tracking-wide leading-tight">
+            {tooltipTitle}
+          </span>
+          <span className="shrink-0 font-mono-num text-[10px] font-bold text-[#f8e3a8] bg-[#09080c] border border-[#d4a64a]/50 px-1.5 py-0.5 leading-none">
+            {displayKey}
+          </span>
+        </div>
+        <div className="h-px bg-[#d4a64a]/22 my-1.5" />
+        <p className="text-[11px] leading-snug text-[#d6cfc2] whitespace-normal">
+          {tooltipDesc}
+        </p>
       </div>
     </div>
   );
